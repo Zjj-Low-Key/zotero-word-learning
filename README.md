@@ -24,18 +24,18 @@ Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 
 ## Requirements
 
-- Zotero 9 is the recommended and target runtime for this release. The bundled manifest allows Zotero 9.0 through 9.*.
+- Zotero 9 is the recommended and target runtime for this release. The bundled manifest is kept unchanged from the provided source package and allows Zotero 7.0 through 9.*.
 
 Compatibility boundary:
 
 - Recommended: Zotero 9.x.
-- Manifest-allowed: Zotero 9.0 to 9.*.
-- Not supported: Zotero 8.x, Zotero 7.x, Zotero 6.x, and earlier.
+- Manifest-allowed: Zotero 7.0 to 9.*.
+- Not supported: Zotero 6.x and earlier.
 - Not declared: future Zotero versions beyond 9.* until the manifest is updated and tested.
 - A desktop environment with Zotero plugin support.
 - An LLM API key if you want to use LLM completion, connection testing, or LLM-generated review distractors.
 
-This means the release should be installed on Zotero 9.x. Zotero 8.x, Zotero 7.x, and earlier versions are intentionally outside the manifest range.
+This means the release should be installed on Zotero 9.x when possible. Zotero 7.x and 8.x remain inside the original manifest range, but Zotero 9 is the documented target environment for this release.
 
 ## Installation
 

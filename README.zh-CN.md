@@ -24,18 +24,18 @@ English documentation: [README.md](README.md)
 
 ## 环境要求
 
-- 推荐使用 Zotero 9.x。当前安装包 manifest 允许 Zotero 9.0 到 9.*。
+- 推荐使用 Zotero 9.x。当前安装包 manifest 保持你提供的源码包原样，允许 Zotero 7.0 到 9.*。
 
 版本限制：
 
 - 推荐运行环境：Zotero 9.x。
-- manifest 允许范围：Zotero 9.0 到 9.*。
-- 不支持：Zotero 8.x、Zotero 7.x、Zotero 6.x 及更早版本。
+- manifest 允许范围：Zotero 7.0 到 9.*。
+- 不支持：Zotero 6.x 及更早版本。
 - 未声明支持：未来超过 9.* 的 Zotero 版本，需要更新 manifest 并重新测试。
 - 支持 Zotero 插件的桌面环境。
 - 如果要使用 LLM 补全、连接测试、LLM 生成复习混淆项，需要准备对应服务商的 API Key。
 
-也就是说，本版本应安装在 Zotero 9.x 上。Zotero 8.x、Zotero 7.x 及更早版本被明确排除在 manifest 允许范围之外。
+也就是说，建议优先安装在 Zotero 9.x 上。Zotero 7.x 和 Zotero 8.x 仍在原始 manifest 允许范围内，但当前 README 将 Zotero 9 作为本版本的明确目标环境。
 
 ## 安装方法
 
