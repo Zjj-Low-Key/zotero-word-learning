@@ -1,6 +1,4 @@
-# Zotero Word Learning v0.5.3
-
-Initial public release package.
+# Zotero Word Learning v0.5.5
 
 ## Highlights
 
@@ -8,6 +6,7 @@ Initial public release package.
 - LLM-assisted vocabulary completion.
 - Multi-provider LLM configuration.
 - DeepSeek/OpenAI/Gemini/Anthropic thinking intensity support.
+- Speech style selection and voice preview.
 - Card-based wordbook UI.
 - All Words list with search and A-Z/Z-A sorting.
 - Three review modes.
@@ -18,5 +17,5 @@ Initial public release package.
 
 ## Assets
 
-- `zotero-word-learning-0.5.3.xpi`
-- `Word Learning 0.5.3 source.zip`
+- `zotero-word-learning-0.5.5.xpi`
+- source code zip

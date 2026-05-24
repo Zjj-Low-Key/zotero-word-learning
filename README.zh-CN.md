@@ -79,6 +79,7 @@ English documentation: [README.md](README.md)
 - 使用 LLM 补全音标、中文释义、论文语境解释和相关短语。
 - 支持 OpenAI、DeepSeek、Gemini、Anthropic、MiniMax、GLM、Grok、Qwen、Kimi 和自定义 OpenAI-compatible API。
 - 对支持推理或思考参数的模型提供思考强度设置。
+- 支持发音风格选择和语音预览。
 - 使用本地 JSON 文件保存词库。
 - 支持自定义数据库路径。
 - 修改到空的新数据库路径时，尝试自动复制旧数据库。
@@ -98,7 +99,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.5.3.md
+├── RELEASE_NOTES_v0.5.5.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -110,19 +111,16 @@ English documentation: [README.md](README.md)
 │   └── images/
 ├── scripts/
 │   └── build-xpi.sh
-└── dist/
-    ├── zotero-word-learning-0.5.3.xpi
-    └── Word Learning 0.5.3 source.zip
 ```
 
 ## 安装方法
 
-1. 从 Release 页面或 `dist/` 目录下载 `zotero-word-learning-0.5.3.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.5.5.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.5.3.xpi`。
+6. 选择 `zotero-word-learning-0.5.5.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧浮动 `WL` 按钮，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -366,12 +364,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.5.3`
+当前版本：`0.5.5`
 
 Release 资产：
 
-- `zotero-word-learning-0.5.3.xpi`
-- `Word Learning 0.5.3 source.zip`
+- `zotero-word-learning-0.5.5.xpi`
+- `Word Learning 0.5.5 source.zip`
 
 ## 许可证
 

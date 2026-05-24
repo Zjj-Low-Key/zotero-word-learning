@@ -210,7 +210,14 @@ var WordLearningPlugin = {
       thinkingHigh: ['高', 'High'],
       databasePath: ['数据库保存路径', 'Database path'],
       defaultDatabasePath: ['默认数据库路径', 'Default database path'],
-      customDatabasePathHint: ['可自定义完整 JSON 文件路径；留空则使用默认路径。', 'Use a custom full JSON file path, or leave blank for the default path.']
+      customDatabasePathHint: ['可自定义完整 JSON 文件路径；留空则使用默认路径。', 'Use a custom full JSON file path, or leave blank for the default path.'],
+      speechStyle: ['发音风格', 'Speech style'],
+      speechPreview: ['预览发音', 'Preview voice'],
+      speechAutoFemale: ['自动优先女声', 'Auto female'],
+      speechAutoMale: ['自动优先男声', 'Auto male'],
+      speechNatural: ['自然清晰', 'Natural clear'],
+      speechSlow: ['慢速清晰', 'Slow clear'],
+      speechSystem: ['系统默认', 'System default']
     };
     var v = dict[key] || [key, key];
     return zh ? v[0] : v[1];
@@ -1256,6 +1263,7 @@ var WordLearningPlugin = {
     this.addSettingInput(doc, box, 'API URL', 'apiUrl', 'https://api.deepseek.com');
     this.addSettingInput(doc, box, 'Model', 'modelName', 'deepseek-v4-flash');
     var reasoningSelect = this.addSettingSelect(doc, box, this.t('thinkingIntensity'), 'reasoningEffort', [['default', this.t('thinkingDefault')], ['low', this.t('thinkingLow')], ['medium', this.t('thinkingMedium')], ['high', this.t('thinkingHigh')]]);
+    this.addSettingSelect(doc, box, this.t('speechStyle'), 'speechStyle', [['auto-female', this.t('speechAutoFemale')], ['auto-male', this.t('speechAutoMale')], ['natural', this.t('speechNatural')], ['slow', this.t('speechSlow')], ['system', this.t('speechSystem')]]);
     this.addSettingInput(doc, box, 'API Key', 'apiKey', 'sk-...', 'password');
     this.addSettingInput(doc, box, this.t('databasePath'), 'dataPath', this.getDefaultDataPath());
     this.addReadonlyPathRow(doc, box, this.t('defaultDatabasePath'), this.getDefaultDataPath());
@@ -1263,7 +1271,8 @@ var WordLearningPlugin = {
     var row = this.actionRow(doc);
     var save = this.primaryButton(doc, this.t('saveSettings')); save.addEventListener('click', function () { plugin.saveSettings(win); });
     var test = this.smallButton(doc, this.t('testConnection')); test.addEventListener('click', function () { plugin.testConnection(win, test); });
-    row.appendChild(save); row.appendChild(test); box.appendChild(row);
+    var preview = this.smallButton(doc, this.t('speechPreview')); preview.addEventListener('click', function () { plugin.previewSpeechStyle(win); });
+    row.appendChild(save); row.appendChild(test); row.appendChild(preview); box.appendChild(row);
     box.appendChild(this.html(doc, 'div', { styleObj: { marginTop: '6px', color: '#6b7280', fontSize: '12px', lineHeight: '18px' } }, 'Tip: For DeepSeek, use API URL https://api.deepseek.com. The /anthropic path is only for Anthropic-compatible mode.'));
     box.appendChild(this.statusBox(doc, 'settings-status', this.t('ready')));
     var modelInput = box.querySelector('[data-setting="modelName"]');
@@ -1468,13 +1477,64 @@ var WordLearningPlugin = {
   },
 
   speakReviewTerm(win) {
-    var p = this.panel(win);
-    var text = p?.querySelector('[data-review="text"]')?.textContent || '';
-    if (!text || text === 'No review item') {
-      this.status(win, 'review-status', 'No review word to read.', 'err');
+    var task = this.getCurrentReviewTask(win);
+    var text = task && task.term ? (task.term.text || '') : '';
+    if (!text) {
+      var p = this.panel(win);
+      text = p?.querySelector('[data-review="text"]')?.textContent || '';
+    }
+    if (!text || text === 'No review item' || text === '暂无复习词条' || text === '拼写单词/短语' || text === 'Spell the word or phrase') {
+      this.status(win, 'review-status', this.isChineseUI() ? '没有可朗读的复习词。' : 'No review word to read.', 'err');
       return;
     }
     this.speakText(win, text, 'review-status');
+  },
+
+  previewSpeechStyle(win) {
+    var p = this.panel(win);
+    var styleNode = p ? p.querySelector('[data-setting="speechStyle"]') : null;
+    var style = styleNode ? styleNode.value : 'auto-female';
+    try { Zotero.Prefs.set('extensions.word-learning.speechStyle', style); } catch (e) {}
+    this.speakText(win, 'epistemic uncertainty', 'settings-status');
+  },
+
+  speechStyleConfig(style) {
+    style = String(style || 'auto-female').toLowerCase();
+    if (style === 'slow') return { rate: 0.68, pitch: 0.9, prefer: 'female' };
+    if (style === 'natural') return { rate: 0.86, pitch: 0.96, prefer: 'natural' };
+    if (style === 'auto-male') return { rate: 0.8, pitch: 0.82, prefer: 'male' };
+    if (style === 'system') return { rate: 1.0, pitch: 1.0, prefer: 'system' };
+    return { rate: 0.78, pitch: 0.88, prefer: 'female' };
+  },
+
+  chooseSpeechVoice(voices, style) {
+    voices = voices || [];
+    var cfg = this.speechStyleConfig(style);
+    if (cfg.prefer === 'system') return null;
+    var badVoiceName = /(whisper|novelty|bells|boing|bubbles|cellos|deranged|hysterical|pipe|trinoids|zarvox|bad news|good news|organ|superstar|jester)/i;
+    var femaleName = /(samantha|karen|victoria|susan|moira|tessa|serena|zira|jenny|aria|google us english female|female)/i;
+    var maleName = /(alex|daniel|guy|david|mark|fred|ralph|tom|male)/i;
+    var naturalName = /(natural|enhanced|premium|neural|google us english)/i;
+    var englishVoices = voices.filter(function (v) {
+      return /^en([-_]|$)/i.test(v.lang || '') && !badVoiceName.test(v.name || '');
+    });
+    if (!englishVoices.length) return null;
+    if (cfg.prefer === 'male') {
+      return englishVoices.find(function (v) { return maleName.test(v.name || ''); }) ||
+        englishVoices.find(function (v) { return naturalName.test(v.name || ''); }) ||
+        englishVoices.find(function (v) { return /en[-_]US/i.test(v.lang || ''); }) ||
+        englishVoices[0] || null;
+    }
+    if (cfg.prefer === 'natural') {
+      return englishVoices.find(function (v) { return naturalName.test(v.name || ''); }) ||
+        englishVoices.find(function (v) { return femaleName.test(v.name || ''); }) ||
+        englishVoices.find(function (v) { return /en[-_]US/i.test(v.lang || ''); }) ||
+        englishVoices[0] || null;
+    }
+    return englishVoices.find(function (v) { return femaleName.test(v.name || ''); }) ||
+      englishVoices.find(function (v) { return naturalName.test(v.name || ''); }) ||
+      englishVoices.find(function (v) { return /en[-_]US/i.test(v.lang || ''); }) ||
+      englishVoices[0] || null;
   },
 
   speakText(win, text, statusRole) {
@@ -1488,26 +1548,17 @@ var WordLearningPlugin = {
     }
     try {
       synth.cancel();
+      var settings = this.getSettings();
+      var speechStyle = String(settings.speechStyle || 'auto-female').toLowerCase();
+      var cfg = this.speechStyleConfig(speechStyle);
       var utterance = new Utterance(text);
       utterance.lang = 'en-US';
-      // Some Zotero/Firefox environments choose a low-quality or very high-pitch
-      // default voice.  A slightly lower pitch and slower rate makes local TTS
-      // much less sharp, especially for academic words and phrases.
-      utterance.rate = 0.78;
-      utterance.pitch = 0.88;
+      utterance.rate = cfg.rate;
+      utterance.pitch = cfg.pitch;
       utterance.volume = 0.95;
       var voices = [];
       try { voices = synth.getVoices ? synth.getVoices() : []; } catch (e) { voices = []; }
-      var badVoiceName = /(whisper|novelty|bells|boing|bubbles|cellos|deranged|hysterical|pipe|trinoids|zarvox|bad news|good news|organ|superstar|jester)/i;
-      var preferredFemaleVoiceName = /(samantha|karen|victoria|susan|moira|tessa|serena|zira|jenny|aria|google us english female|female)/i;
-      var preferredVoiceName = /(natural|enhanced|premium|google us english|alex|daniel|guy)/i;
-      var englishVoices = voices.filter(function (v) {
-        return /^en([-_]|$)/i.test(v.lang || '') && !badVoiceName.test(v.name || '');
-      });
-      var voice = englishVoices.find(function (v) { return preferredFemaleVoiceName.test(v.name || ''); }) ||
-        englishVoices.find(function (v) { return preferredVoiceName.test(v.name || ''); }) ||
-        englishVoices.find(function (v) { return /en[-_]US/i.test(v.lang || ''); }) ||
-        englishVoices[0] || null;
+      var voice = this.chooseSpeechVoice(voices, speechStyle);
       if (voice) {
         utterance.voice = voice;
         utterance.lang = voice.lang || 'en-US';
@@ -1810,6 +1861,8 @@ var WordLearningPlugin = {
     s.reasoningEffort = String(s.reasoningEffort || 'default').toLowerCase();
     if (!/^(default|low|medium|high)$/.test(s.reasoningEffort)) s.reasoningEffort = 'default';
     if (!this.supportsReasoningEffort(provider, s.modelName)) s.reasoningEffort = 'default';
+    s.speechStyle = String(s.speechStyle || 'auto-female').toLowerCase();
+    if (!/^(auto-female|auto-male|natural|slow|system)$/.test(s.speechStyle)) s.speechStyle = 'auto-female';
     return s;
   },
 
@@ -1880,7 +1933,7 @@ var WordLearningPlugin = {
 
   getSettings() {
     function get(key, fallback) { try { return Zotero.Prefs.get('extensions.word-learning.' + key) || fallback; } catch (e) { return fallback; } }
-    return { language: get('language', 'zh-CN'), llmProvider: get('llmProvider', 'deepseek'), apiUrl: get('apiUrl', 'https://api.deepseek.com'), modelName: get('modelName', 'deepseek-v4-flash'), reasoningEffort: get('reasoningEffort', 'default'), apiKey: get('apiKey', ''), dataPath: get('dataPath', '') };
+    return { language: get('language', 'zh-CN'), llmProvider: get('llmProvider', 'deepseek'), apiUrl: get('apiUrl', 'https://api.deepseek.com'), modelName: get('modelName', 'deepseek-v4-flash'), reasoningEffort: get('reasoningEffort', 'default'), speechStyle: get('speechStyle', 'auto-female'), apiKey: get('apiKey', ''), dataPath: get('dataPath', '') };
   },
 
   loadSettings(win) {
@@ -2546,7 +2599,7 @@ var WordLearningPlugin = {
     var ans = p.querySelector('[data-review="answer"]');
     if (ans) {
       ans.style.display = 'none';
-      ans.textContent = t ? (t.chineseMeaning || '') + '\n' + (t.contextExplanation || '') : '';
+      ans.textContent = '';
     }
     if (isSpelling) {
       this.buildSpellingSlots(win, t);
@@ -2608,7 +2661,7 @@ var WordLearningPlugin = {
           boxSizing: 'border-box'
         }
       }));
-      btn.appendChild(this.html(win.document, 'span', { styleObj: { flex: '1' } }, c.text));
+      btn.appendChild(this.html(win.document, 'span', { dataset: { role: 'choice-text' }, styleObj: { flex: '1' } }, c.text));
       var sourceBadge = this.html(win.document, 'span', {
         dataset: { role: 'choice-source' },
         title: c.explanation || '',
@@ -2664,7 +2717,32 @@ var WordLearningPlugin = {
     var ans = p.querySelector('[data-review="answer"]');
     if (!ans) return;
     var show = forceShow === true ? true : ans.style.display === 'none' || !ans.style.display;
-    ans.style.display = show ? 'block' : 'none';
+    if (!show) {
+      ans.style.display = 'none';
+      return;
+    }
+
+    var task = this.getCurrentReviewTask(win);
+    var term = task && task.term ? task.term : null;
+    var type = task && task.type ? task.type : (p.dataset.reviewQuestionType || 'meaning');
+
+    if (type === 'spelling') {
+      ans.textContent = term ?
+        ((this.isChineseUI() ? '正确拼写：' : 'Correct spelling: ') + (term.text || '')) :
+        (this.isChineseUI() ? '暂无答案。' : 'No answer.');
+    } else {
+      var correctBtn = p.querySelector('[data-review-choice="1"]');
+      var correctTextNode = correctBtn ? correctBtn.querySelector('[data-role="choice-text"]') : null;
+      var correctText = correctTextNode ? correctTextNode.textContent : (term ? (term.chineseMeaning || '') : '');
+      ans.textContent = (this.isChineseUI() ? '正确选项：' : 'Correct option: ') + (correctText || '');
+      if (correctBtn) {
+        correctBtn.style.borderColor = '#22c55e';
+        correctBtn.style.background = '#f0fdf4';
+        correctBtn.style.color = '#166534';
+      }
+    }
+
+    ans.style.display = 'block';
   },
 
   finishReview(win) {
