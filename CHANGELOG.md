@@ -1,11 +1,17 @@
 # Changelog
 
+## 0.5.6
+
+- Changed speech style selection to use locally exposed English voices from `speechSynthesis.getVoices()`.
+- If Zotero/Windows exposes only one English voice, Settings now shows only that one voice option.
+- Preview voice now uses the exact selected local voice.
+- Existing legacy speech style values remain compatible.
+
 ## 0.5.5
 
 - Added speech style selection in Settings.
 - Added local speech preview button.
 - Added Auto female, Auto male, Natural clear, Slow clear, and System default voice styles.
-- Speech style is applied to word cards, review pronunciation, spelling review, and preview speech.
 
 ## 0.5.4
 

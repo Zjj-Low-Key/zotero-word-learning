@@ -79,7 +79,7 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 - LLM completion for pronunciation, Chinese meaning, paper-context explanation, and related phrases.
 - Multi-provider LLM settings for OpenAI, DeepSeek, Gemini, Anthropic, MiniMax, GLM, Grok, Qwen, Kimi, and custom OpenAI-compatible APIs.
 - Thinking intensity controls for models that support reasoning or thinking parameters.
-- Speech style selection and voice preview.
+- Local speech voice selection and voice preview.
 - Local JSON vocabulary database.
 - Custom database path support.
 - Automatic database copy when changing to an empty custom path.
@@ -99,7 +99,7 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.5.5.md
+├── RELEASE_NOTES_v0.5.6.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -115,12 +115,12 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 
 ## Installation
 
-1. Download `zotero-word-learning-0.5.5.xpi` from the release page.
+1. Download `zotero-word-learning-0.5.6.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.5.5.xpi`.
+6. Select `zotero-word-learning-0.5.6.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the floating `WL` button or from `Tools` -> `Word Learning`.
 
@@ -364,12 +364,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.5.5`
+Current version: `0.5.6`
 
 Release assets:
 
-- `zotero-word-learning-0.5.5.xpi`
-- `Word Learning 0.5.5 source.zip`
+- `zotero-word-learning-0.5.6.xpi`
+- `Word Learning 0.5.6 source.zip`
 
 ## License
 

@@ -1263,7 +1263,7 @@ var WordLearningPlugin = {
     this.addSettingInput(doc, box, 'API URL', 'apiUrl', 'https://api.deepseek.com');
     this.addSettingInput(doc, box, 'Model', 'modelName', 'deepseek-v4-flash');
     var reasoningSelect = this.addSettingSelect(doc, box, this.t('thinkingIntensity'), 'reasoningEffort', [['default', this.t('thinkingDefault')], ['low', this.t('thinkingLow')], ['medium', this.t('thinkingMedium')], ['high', this.t('thinkingHigh')]]);
-    this.addSettingSelect(doc, box, this.t('speechStyle'), 'speechStyle', [['auto-female', this.t('speechAutoFemale')], ['auto-male', this.t('speechAutoMale')], ['natural', this.t('speechNatural')], ['slow', this.t('speechSlow')], ['system', this.t('speechSystem')]]);
+    this.addSpeechVoiceSelect(doc, box, win);
     this.addSettingInput(doc, box, 'API Key', 'apiKey', 'sk-...', 'password');
     this.addSettingInput(doc, box, this.t('databasePath'), 'dataPath', this.getDefaultDataPath());
     this.addReadonlyPathRow(doc, box, this.t('defaultDatabasePath'), this.getDefaultDataPath());
@@ -1287,6 +1287,67 @@ var WordLearningPlugin = {
     return view;
   },
 
+
+
+  getSpeechSynthesis(win) {
+    return win.speechSynthesis || (win.window && win.window.speechSynthesis) || (typeof speechSynthesis !== 'undefined' ? speechSynthesis : null);
+  },
+
+  getAvailableEnglishVoices(win) {
+    var synth = this.getSpeechSynthesis(win);
+    var voices = [];
+    try { voices = synth && synth.getVoices ? synth.getVoices() : []; } catch (e) { voices = []; }
+    var badVoiceName = /(whisper|novelty|bells|boing|bubbles|cellos|deranged|hysterical|pipe|trinoids|zarvox|bad news|good news|organ|superstar|jester)/i;
+    voices = (voices || []).filter(function (v) {
+      return /^en([-_]|$)/i.test(v.lang || '') && !badVoiceName.test(v.name || '');
+    });
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < voices.length; i++) {
+      var key = (voices[i].name || '') + '|' + (voices[i].lang || '');
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(voices[i]);
+    }
+    return out;
+  },
+
+  voiceId(voice) {
+    if (!voice) return 'system';
+    return 'voice:' + encodeURIComponent(voice.name || '') + '|' + encodeURIComponent(voice.lang || '');
+  },
+
+  parseVoiceId(id) {
+    id = String(id || '');
+    if (id.indexOf('voice:') !== 0) return null;
+    var rest = id.slice(6);
+    var parts = rest.split('|');
+    return {
+      name: decodeURIComponent(parts[0] || ''),
+      lang: decodeURIComponent(parts[1] || '')
+    };
+  },
+
+  addSpeechVoiceSelect(doc, box, win) {
+    var voices = this.getAvailableEnglishVoices(win);
+    var options = [];
+    if (voices.length) {
+      for (var i = 0; i < voices.length; i++) {
+        var label = (voices[i].name || 'English Voice') + (voices[i].lang ? ' · ' + voices[i].lang : '');
+        options.push([this.voiceId(voices[i]), label]);
+      }
+    } else {
+      options.push(['system', this.t('speechSystem')]);
+    }
+    var sel = this.addSettingSelect(doc, box, this.t('speechStyle'), 'speechStyle', options);
+    sel.dataset.dynamicVoiceSelect = '1';
+    if (voices.length <= 1) {
+      // With only one exposed voice, show only one option. Keep it editable as
+      // a normal select, but there is nothing else to switch to.
+      sel.title = this.isChineseUI() ? '当前 Zotero/系统只暴露了一个英文语音。' : 'Only one English voice is exposed by Zotero/the system.';
+    }
+    return sel;
+  },
 
   addReadonlyPathRow(doc, box, label, value) {
     var r = this.row(doc);
@@ -1493,24 +1554,36 @@ var WordLearningPlugin = {
   previewSpeechStyle(win) {
     var p = this.panel(win);
     var styleNode = p ? p.querySelector('[data-setting="speechStyle"]') : null;
-    var style = styleNode ? styleNode.value : 'auto-female';
+    var style = styleNode ? styleNode.value : 'system';
     try { Zotero.Prefs.set('extensions.word-learning.speechStyle', style); } catch (e) {}
     this.speakText(win, 'epistemic uncertainty', 'settings-status');
   },
 
   speechStyleConfig(style) {
-    style = String(style || 'auto-female').toLowerCase();
+    style = String(style || 'system').toLowerCase();
     if (style === 'slow') return { rate: 0.68, pitch: 0.9, prefer: 'female' };
     if (style === 'natural') return { rate: 0.86, pitch: 0.96, prefer: 'natural' };
     if (style === 'auto-male') return { rate: 0.8, pitch: 0.82, prefer: 'male' };
-    if (style === 'system') return { rate: 1.0, pitch: 1.0, prefer: 'system' };
-    return { rate: 0.78, pitch: 0.88, prefer: 'female' };
+    if (style === 'auto-female') return { rate: 0.78, pitch: 0.88, prefer: 'female' };
+    return { rate: 0.82, pitch: 0.92, prefer: 'explicit' };
   },
 
   chooseSpeechVoice(voices, style) {
     voices = voices || [];
+    style = String(style || 'system');
+    var explicit = this.parseVoiceId(style);
+    if (explicit) {
+      for (var e = 0; e < voices.length; e++) {
+        if ((voices[e].name || '') === explicit.name && (voices[e].lang || '') === explicit.lang) return voices[e];
+      }
+      for (var f = 0; f < voices.length; f++) {
+        if ((voices[f].name || '') === explicit.name) return voices[f];
+      }
+      return null;
+    }
+
     var cfg = this.speechStyleConfig(style);
-    if (cfg.prefer === 'system') return null;
+    if (style === 'system') return null;
     var badVoiceName = /(whisper|novelty|bells|boing|bubbles|cellos|deranged|hysterical|pipe|trinoids|zarvox|bad news|good news|organ|superstar|jester)/i;
     var femaleName = /(samantha|karen|victoria|susan|moira|tessa|serena|zira|jenny|aria|google us english female|female)/i;
     var maleName = /(alex|daniel|guy|david|mark|fred|ralph|tom|male)/i;
@@ -1540,7 +1613,7 @@ var WordLearningPlugin = {
   speakText(win, text, statusRole) {
     text = String(text || '').trim();
     if (!text) return;
-    var synth = win.speechSynthesis || (win.window && win.window.speechSynthesis) || (typeof speechSynthesis !== 'undefined' ? speechSynthesis : null);
+    var synth = this.getSpeechSynthesis(win);
     var Utterance = win.SpeechSynthesisUtterance || (typeof SpeechSynthesisUtterance !== 'undefined' ? SpeechSynthesisUtterance : null);
     if (!synth || !Utterance) {
       this.status(win, statusRole || 'wordbook-status', 'Speech synthesis is not available in this Zotero window.', 'err');
@@ -1549,7 +1622,7 @@ var WordLearningPlugin = {
     try {
       synth.cancel();
       var settings = this.getSettings();
-      var speechStyle = String(settings.speechStyle || 'auto-female').toLowerCase();
+      var speechStyle = String(settings.speechStyle || 'system');
       var cfg = this.speechStyleConfig(speechStyle);
       var utterance = new Utterance(text);
       utterance.lang = 'en-US';
@@ -1563,7 +1636,7 @@ var WordLearningPlugin = {
         utterance.voice = voice;
         utterance.lang = voice.lang || 'en-US';
       }
-      utterance.onstart = () => this.status(win, statusRole || 'wordbook-status', 'Reading: ' + text, 'ok');
+      utterance.onstart = () => this.status(win, statusRole || 'wordbook-status', 'Reading: ' + text + (voice ? ' · ' + voice.name : ''), 'ok');
       utterance.onerror = (event) => this.status(win, statusRole || 'wordbook-status', 'Speech failed: ' + (event.error || 'unknown error'), 'err');
       synth.speak(utterance);
     } catch (e) {
@@ -1861,8 +1934,10 @@ var WordLearningPlugin = {
     s.reasoningEffort = String(s.reasoningEffort || 'default').toLowerCase();
     if (!/^(default|low|medium|high)$/.test(s.reasoningEffort)) s.reasoningEffort = 'default';
     if (!this.supportsReasoningEffort(provider, s.modelName)) s.reasoningEffort = 'default';
-    s.speechStyle = String(s.speechStyle || 'auto-female').toLowerCase();
-    if (!/^(auto-female|auto-male|natural|slow|system)$/.test(s.speechStyle)) s.speechStyle = 'auto-female';
+    s.speechStyle = String(s.speechStyle || 'system');
+    if (s.speechStyle.indexOf('voice:') !== 0 && !/^(auto-female|auto-male|natural|slow|system)$/i.test(s.speechStyle)) {
+      s.speechStyle = 'system';
+    }
     return s;
   },
 
@@ -1933,12 +2008,21 @@ var WordLearningPlugin = {
 
   getSettings() {
     function get(key, fallback) { try { return Zotero.Prefs.get('extensions.word-learning.' + key) || fallback; } catch (e) { return fallback; } }
-    return { language: get('language', 'zh-CN'), llmProvider: get('llmProvider', 'deepseek'), apiUrl: get('apiUrl', 'https://api.deepseek.com'), modelName: get('modelName', 'deepseek-v4-flash'), reasoningEffort: get('reasoningEffort', 'default'), speechStyle: get('speechStyle', 'auto-female'), apiKey: get('apiKey', ''), dataPath: get('dataPath', '') };
+    return { language: get('language', 'zh-CN'), llmProvider: get('llmProvider', 'deepseek'), apiUrl: get('apiUrl', 'https://api.deepseek.com'), modelName: get('modelName', 'deepseek-v4-flash'), reasoningEffort: get('reasoningEffort', 'default'), speechStyle: get('speechStyle', 'system'), apiKey: get('apiKey', ''), dataPath: get('dataPath', '') };
   },
 
   loadSettings(win) {
     var p = this.panel(win); if (!p) return; var s = this.getSettings();
-    for (var k in s) { var n = p.querySelector('[data-setting="' + k + '"]'); if (n) n.value = s[k] || ''; }
+    for (var k in s) {
+      var n = p.querySelector('[data-setting="' + k + '"]');
+      if (n) {
+        n.value = s[k] || '';
+        if (k === 'speechStyle' && n.value !== (s[k] || '') && n.options.length) {
+          n.selectedIndex = 0;
+          try { Zotero.Prefs.set('extensions.word-learning.speechStyle', n.value || 'system'); } catch (e) {}
+        }
+      }
+    }
     this.updateReasoningControl(win);
   },
 

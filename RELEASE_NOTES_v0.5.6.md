@@ -1,4 +1,4 @@
-# Zotero Word Learning v0.5.5
+# Zotero Word Learning v0.5.6
 
 ## Highlights
 
@@ -6,7 +6,8 @@
 - LLM-assisted vocabulary completion.
 - Multi-provider LLM configuration.
 - DeepSeek/OpenAI/Gemini/Anthropic thinking intensity support.
-- Speech style selection and voice preview.
+- Local speech voice selection based on voices exposed by Zotero/system.
+- Voice preview in Settings.
 - Card-based wordbook UI.
 - All Words list with search and A-Z/Z-A sorting.
 - Three review modes.
@@ -17,5 +18,5 @@
 
 ## Assets
 
-- `zotero-word-learning-0.5.5.xpi`
+- `zotero-word-learning-0.5.6.xpi`
 - source code zip
