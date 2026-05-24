@@ -1,0 +1,19 @@
+{
+  "name": "zotero-word-learning",
+  "version": "0.5.3",
+  "description": "A Zotero plugin for academic word learning, LLM-assisted vocabulary completion, and spaced review.",
+  "private": true,
+  "scripts": {
+    "build": "bash scripts/build-xpi.sh",
+    "pack": "bash scripts/build-xpi.sh"
+  },
+  "keywords": [
+    "zotero",
+    "zotero-plugin",
+    "vocabulary",
+    "word-learning",
+    "llm",
+    "academic-reading"
+  ],
+  "license": "MIT"
+}
