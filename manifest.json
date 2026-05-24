@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Word Learning for Zotero",
+  "version": "0.5.3",
+  "description": "Collect, complete, save, and review English words and phrases while reading papers in Zotero.",
+  "author": "zhujiajun",
+  "applications": {
+    "zotero": {
+      "id": "word-learning@zotero.local",
+      "strict_min_version": "9.0",
+      "strict_max_version": "9.*",
+      "update_url": "https://example.com/zotero-word-learning/updates.json"
+    }
+  }
+}
