@@ -1,46 +1,134 @@
 # Zotero Word Learning
 
-Zotero Word Learning 是一个面向论文阅读场景的 Zotero 插件，用于在阅读英文论文时收集、补全、管理和复习学术英语单词与短语。
+This Zotero plugin and its documentation were completed with ChatGPT and Codex.
 
-插件重点面向计算机视觉、机器学习、人工智能论文阅读场景。用户可以在 Zotero PDF 阅读器中选中单词或短语，将其加入词库，然后通过 LLM 自动补全音标、中文释义、上下文解释、相关短语、例句复习题和混淆选项。插件还提供卡片式词库、全部词汇列表、本地发音、三种复习题型、错题加权、自定义数据库路径等功能。
+Zotero Word Learning is a Zotero 9 plugin for collecting, completing, managing, and reviewing academic English words and phrases while reading papers. It is designed for paper-reading workflows in computer vision, machine learning, artificial intelligence, and adjacent research fields.
 
-## 功能特性
+Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 
-### 1. Zotero 阅读器内添加单词
+## What It Does
 
-在 Zotero PDF 阅读器中选中英文单词或短语后，可以通过插件入口添加到词库。
+When you read a PDF in Zotero, you can collect unfamiliar words and phrases, save them to a local wordbook, use an LLM to complete vocabulary-card fields, and review the saved terms later.
 
-插件会打开添加单词页面，并自动填入选中的文本。用户可以手动补充例句，也可以使用 LLM 补全其他信息。
+The plugin focuses on a practical reading loop:
 
-### 2. 独立添加单词页面
+1. Read a paper in Zotero.
+2. Select an unfamiliar word or phrase.
+3. Add it to Word Learning.
+4. Fill or generate pronunciation, Chinese meaning, context explanation, and related phrases.
+5. Save it to a local JSON wordbook.
+6. Review it with cards, searchable lists, multiple-choice questions, example-context questions, and spelling practice.
 
-插件提供独立的“添加单词”页面，专门用于新词录入。
+## Target Environment
 
-添加页面包含：
+- Recommended runtime: Zotero 9.
+- Plugin type: Zotero bootstrap plugin.
+- Data storage: local JSON file in the Zotero profile by default.
+- LLM use: optional, configured by the user in the plugin settings.
 
-- 单词 / 短语
-- 例句
-- 音标
-- 中文释义
-- 上下文解释
-- 相关短语
+## Main Features
 
-点击保存后，插件会自动保存到本地 JSON 数据库。保存成功后，添加页面会自动清空，方便连续添加多个词条。
+- Add words and phrases from Zotero's PDF reading workflow.
+- Floating `WL` button in the Zotero main window.
+- `Tools` menu entry for opening the Word Learning panel.
+- Five main views: Add Word, Word Card, All Words, Review, and Settings.
+- LLM completion for pronunciation, Chinese meaning, paper-context explanation, and related phrases.
+- Multi-provider LLM settings for OpenAI, DeepSeek, Gemini, Anthropic, MiniMax, GLM, Grok, Qwen, Kimi, and custom OpenAI-compatible APIs.
+- Thinking intensity controls for models that support reasoning or thinking parameters.
+- Local JSON vocabulary database.
+- Custom database path support.
+- Automatic database copy when changing to an empty custom path.
+- Card-based browsing and editing.
+- Full vocabulary list with search and A-Z/Z-A sorting.
+- Local system pronunciation through speech synthesis.
+- Review sessions with meaning choice, example-based meaning choice, and spelling questions.
+- Mistake-weighted review sampling.
+- LLM-generated spelling/sound-alike distractors for better review questions.
+- Chinese and English plugin UI.
 
-### 3. LLM 自动补全
+## Repository Structure
 
-点击 `LLM 补全` 后，插件会调用用户配置的 LLM 服务，自动补全：
+```text
+.
+├── README.md
+├── README.zh-CN.md
+├── LICENSE
+├── CHANGELOG.md
+├── RELEASE_NOTES_v0.5.3.md
+├── package.json
+├── manifest.json
+├── bootstrap.js
+├── prefs.js
+├── docs/
+│   ├── usage.md
+│   ├── llm-settings.md
+│   └── review-system.md
+├── scripts/
+│   └── build-xpi.sh
+└── dist/
+    ├── zotero-word-learning-0.5.3.xpi
+    └── Word Learning 0.5.3 source.zip
+```
 
-- 音标
-- 中文释义
-- 结合论文语境的中文解释
-- 包含目标词的相关短语
+## Installation
 
-Prompt 默认要求 LLM 作为计算机视觉和机器学习论文阅读助手，输出适合中文读者理解的学术词汇信息。
+1. Download `zotero-word-learning-0.5.3.xpi` from the release page or from the `dist/` directory.
+2. Open Zotero 9.
+3. Go to `Tools` -> `Add-ons`.
+4. Click the gear icon in the Add-ons Manager.
+5. Choose `Install Add-on From File...`.
+6. Select `zotero-word-learning-0.5.3.xpi`.
+7. Restart Zotero.
+8. After restart, open Word Learning from the floating `WL` button or from `Tools` -> `Word Learning`.
 
-### 4. 多服务商 LLM 设置
+## First-Time Setup
 
-设置页支持多种服务商：
+### 1. Open the Panel
+
+After installation and restart, use either entry point:
+
+- Click the floating `WL` button on the right side of the Zotero main window.
+- Open `Tools` -> `Word Learning`.
+
+The panel contains five tabs:
+
+- `Add Word`
+- `Word Card`
+- `All Words`
+- `Review`
+- `Settings`
+
+### 2. Set the UI Language
+
+1. Open `Settings`.
+2. Choose the UI language.
+3. Click `Save Settings`.
+
+The panel rebuilds after saving so static labels can refresh.
+
+### 3. Configure an LLM Provider
+
+LLM configuration is optional. Without an API key, you can still add, edit, save, browse, and review manually. LLM features require provider settings.
+
+In `Settings`, configure:
+
+- Provider
+- API URL
+- Model
+- API Key
+- Thinking intensity, if supported by the selected model
+
+Then click `Test connection`. The plugin sends a small request and shows the HTTP result in the settings status area.
+
+### 4. Choose a Database Path
+
+By default, the wordbook is stored in the Zotero profile directory under a `word-learning` folder.
+
+You can also enter a custom full JSON file path in `Settings`. If you change to a new path and the new file does not exist, the plugin tries to copy the old database to the new path.
+
+## LLM Provider Notes
+
+The provider selector includes:
 
 - OpenAI
 - DeepSeek
@@ -53,445 +141,193 @@ Prompt 默认要求 LLM 作为计算机视觉和机器学习论文阅读助手�
 - Kimi
 - Custom OpenAI-compatible
 
-设置项包括：
+For OpenAI-compatible providers, enter the base API URL or a complete chat-completions endpoint. For Gemini and Anthropic, the plugin builds the corresponding provider-specific request shape.
 
-- Provider
-- API URL
-- Model
-- API Key
-- 思考强度
-- 数据库保存路径
+The `Thinking intensity` setting can be:
 
-### 5. 思考强度设置
+- Default
+- Low
+- Medium
+- High
 
-对于支持思考强度的模型，插件会启用“思考强度”下拉框。
+The control is enabled only when the provider and model appear to support reasoning or thinking parameters. If the model is not detected as reasoning-capable, the control remains disabled and the plugin uses the default behavior.
 
-可选项：
+## Adding Words
 
-- 默认
-- 低
-- 中
-- 高
+### From a Paper
 
-不同服务商使用不同请求参数：
+1. Open a PDF in Zotero.
+2. Select an English word or phrase.
+3. Open Word Learning.
+4. Go to `Add Word`.
+5. Confirm that the selected text is filled in.
+6. Add the example sentence from the paper.
+7. Click `LLM Complete`, or fill the fields manually.
+8. Review the generated content.
+9. Click `Save`.
 
-- OpenAI-compatible reasoning model：`reasoning_effort`
-- DeepSeek thinking model：`thinking` + `reasoning_effort`
-- Gemini thinking model：`thinkingConfig`
-- Anthropic thinking model：`thinking.budget_tokens`
+### Manually
 
-如果当前模型不支持思考强度，设置项会显示为默认、灰色、不可编辑。
+1. Open `Add Word`.
+2. Enter a word or phrase.
+3. Add an example sentence if available.
+4. Fill or generate pronunciation, meaning, context explanation, and related phrases.
+5. Click `Save`.
 
-### 6. 单词卡片界面
+After saving, the Add Word form clears so you can continue adding terms.
 
-“单词卡片”页面用于浏览当前词条。
+## Vocabulary Card Fields
 
-卡片显示：
+Each term can contain:
 
-- 单词 / 短语
-- 音标
-- 发音按钮
-- 中文释义
-- 相关短语
-- 上下文解释
-- 例句
+- Word or phrase
+- Example sentence
+- Pronunciation
+- Chinese meaning
+- Context explanation
+- Related phrases
+- Review distractors
+- Review statistics
 
-左右切换按钮固定在卡片两侧，不随卡片高度变化，方便连续点击切换。
+The LLM completion prompt is tuned for academic paper reading. It asks for Chinese explanations that fit a computer vision or machine learning context rather than generic dictionary definitions.
 
-### 7. 本地系统发音
+## Word Card View
 
-卡片和复习页面都提供发音按钮。
+The `Word Card` tab is for focused browsing and editing.
 
-发音功能调用系统本地 TTS：
+It shows:
 
-```js
-window.speechSynthesis
-SpeechSynthesisUtterance
-```
+- Word or phrase
+- Pronunciation
+- Speak button
+- Chinese meaning
+- Related phrases
+- Context explanation
+- Example sentences
 
-不依赖网络 API，不消耗 LLM token。
+Use the navigation controls to move through saved cards. Use the edit controls to update the current entry, run LLM completion again, save changes, or delete the selected term.
 
-插件会优先选择英文女声，例如：
+## All Words View
 
-- Samantha
-- Karen
-- Victoria
-- Microsoft Jenny
-- Microsoft Aria
-- Google US English Female
+The `All Words` tab is for fast lookup.
 
-如果系统没有对应语音，则回退到系统默认英文语音。
+It supports:
 
-### 8. 修改单词
+- Search by word text, meaning, context explanation, and phrases.
+- A-Z sorting.
+- Z-A sorting.
+- Click-to-open navigation from a list item to the corresponding word card.
 
-“单词卡片”页面内提供“修改单词”入口。
+## Pronunciation
 
-用户可以修改当前卡片对应的词条信息，包括：
+The plugin uses local system speech synthesis for pronunciation. It does not call an external pronunciation API and does not consume LLM tokens.
 
-- 单词 / 短语
-- 例句
-- 音标
-- 中文释义
-- 上下文解释
-- 相关短语
+Pronunciation is available on word cards and review screens. The plugin prefers English voices when available and falls back to a system voice if no preferred voice is found.
 
-修改保存后，卡片视图会同步刷新。
+## Review System
 
-### 9. 全部词汇列表
+The `Review` tab creates active-recall sessions from your saved vocabulary.
 
-“全部词汇”页面用于查看完整词库。
+You can choose:
 
-功能包括：
+- 10 words
+- 20 words
+- 30 words
+- A custom count
 
-- 默认 A-Z 排序
-- 支持 Z-A 排序
-- 淡灰色 `⇅ A-Z / ⇅ Z-A` 排序按钮
-- 搜索词条
-- 点击词条跳转到对应单词卡片
+For each selected word, the plugin can create three task types:
 
-词汇列表主要显示基础信息，例如单词和中文释义，释义使用浅灰色显示。
+1. Choose the correct Chinese meaning from the word or phrase.
+2. Choose the correct Chinese meaning from the word plus an example sentence.
+3. Spell the word or phrase from pronunciation and meaning.
 
-### 10. 三种复习题型
+Tasks are mixed into one randomized session.
 
-复习页面支持三种题型。
+## Review Progress
 
-#### 题型一：单词选择释义
+Review progress is word-based, not question-based.
 
-给定单词或短语，用户在四个中文释义中选择正确答案。
+For example, if you review 10 words and each word has 3 task types, the session may contain 30 internal tasks. A word is counted as completed only after its required task types are completed.
 
-#### 题型二：单词 + 例句选择释义
+## Mistake Weighting
 
-给定单词或短语，并显示一个对应例句。
+When a word is answered incorrectly or marked as difficult, it receives higher weight in future review sampling. This makes weak terms appear more often in later sessions.
 
-如果某个词条有多个例句，插件会随机选择一个。用户根据单词和例句，在四个中文释义中选择正确答案。
+The review buttons are:
 
-#### 题型三：根据音标、发音和释义拼写单词
+- `Unknown`: you did not know it.
+- `Blurred`: you were unsure.
+- `Known`: you knew it.
 
-插件只显示：
+Use these honestly so the review pool reflects your actual memory state.
 
-- 音标
-- 发音按钮
-- 中文释义
-- 根据字母数量生成的下划线输入区域
+## LLM-Generated Distractors
 
-用户在下划线区域逐字输入。
+For multiple-choice review, the plugin can ask the configured LLM to generate spelling-alike or sound-alike distractors. These are intended to be more useful than random unrelated wrong answers.
 
-反馈规则：
+For example, a distractor can come from a word that looks or sounds similar to the target word, while still having a different meaning.
 
-- 输入正确：绿色
-- 输入错误：红色
-- 未输入：灰色下划线
+If LLM settings are missing or the request fails, the plugin falls back to available local choices.
 
-如果是短语，插件会保留空格。例如 `volume splatting` 会分成两个词块输入。
+## Local Data
 
-全部输入正确后，插件显示“下一题”按钮。此时不显示“不认识 / 模糊 / 认识”三个按钮。
+The wordbook is stored locally as JSON. The plugin writes the database through Zotero's local file APIs.
 
-### 11. 词条级复习进度
+Back up the JSON file if the vocabulary database matters to you. If you use a custom database path, make sure Zotero has permission to write to that location.
 
-复习逻辑是词条级进度，而不是题目级进度。
+## Build
 
-如果用户选择复习 10 个单词，每个单词有 3 种题型，则本轮内部会生成：
+The installable plugin package is an `.xpi` file. It is a ZIP archive containing:
 
-```text
-10 个单词 × 3 种题型 = 30 道任务
-```
+- `manifest.json`
+- `bootstrap.js`
+- `prefs.js`
 
-这些任务会混合在同一个随机池中出现。
-
-某个单词只有在三种题型都答对后，进度才会 +1。
-
-例如：
-
-```text
-第一个单词题型一答对 → 进度不变
-第一个单词题型二答对 → 进度不变
-第一个单词题型三答对 → 进度 +1
-```
-
-### 12. 当前轮错题重新进入随机池
-
-如果某个题型答错，只有该题型会重新进入本轮随机池。
-
-例如：
-
-```text
-题型一答对
-题型二答错
-题型三答对
-```
-
-则题型二会重新出现，题型一和题型三不会被重置。
-
-### 13. 长期错题加权
-
-插件会持久化记录错题统计。
-
-每个词条包含：
-
-```json
-{
-  "wrongCount": 3,
-  "lastWrongAt": "...",
-  "lastCorrectAt": "...",
-  "stats": {
-    "totalReviews": 8,
-    "wrong": 3,
-    "correct": 5,
-    "byType": {
-      "meaning": {
-        "correct": 2,
-        "wrong": 1
-      },
-      "example": {
-        "correct": 2,
-        "wrong": 1
-      },
-      "spelling": {
-        "correct": 1,
-        "wrong": 1
-      }
-    }
-  }
-}
-```
-
-开始新一轮复习时，插件会根据 `wrongCount` 对词条进行加权抽样：
-
-```text
-权重 = 1 + min(wrongCount, 10) × 2
-```
-
-错得越多，后续被抽中的概率越高。答对后，`wrongCount` 会逐步下降，但不会立刻清零。
-
-### 14. LLM 混淆释义
-
-保存单词时，插件会自动生成用于复习的混淆释义。
-
-混淆释义的设计原则是英文形近 / 音近 / 拼写相近，而不是复杂语义相近。
-
-例如目标词是 `genre`，混淆项可能是：
-
-```json
-{
-  "distractors": [
-    {
-      "meaning": "基因",
-      "sourceTerm": "gene",
-      "explanation": "拼写和读音相近。"
-    },
-    {
-      "meaning": "属；类",
-      "sourceTerm": "genera",
-      "explanation": "词形相近。"
-    },
-    {
-      "meaning": "任期；终身教职",
-      "sourceTerm": "tenure",
-      "explanation": "视觉外观相近。"
-    }
-  ]
-}
-```
-
-复习时，如果用户选错，错误选项右侧会显示对应英文混淆词，例如：
-
-```text
-基因 → gene
-```
-
-### 15. 本地 JSON 数据库
-
-插件使用本地 JSON 文件保存数据，不依赖云端服务。
-
-默认路径位于 Zotero profile 下：
-
-```text
-.../word-learning/vocabulary.json
-```
-
-用户也可以在设置页自定义完整 JSON 文件路径，例如：
-
-```text
-/Users/yourname/Documents/ZoteroWordLearning/vocabulary.json
-```
-
-或 Windows：
-
-```text
-D:\ZoteroWordLearning\vocabulary.json
-```
-
-如果新路径不存在数据库，插件会自动把旧数据库复制到新路径。  
-如果新路径已经有数据库，插件不会覆盖，而是直接使用新路径已有数据。
-
-## 安装方法
-
-1. 下载 release 中的 `.xpi` 文件。
-2. 打开 Zotero。
-3. 进入 `Tools -> Add-ons`。
-4. 点击齿轮图标。
-5. 选择 `Install Add-on From File...`。
-6. 选择下载的 `.xpi` 文件。
-7. 重启 Zotero。
-
-安装成功后，Zotero 右侧会出现 `WL` 按钮，也可以通过工具栏菜单打开插件面板。
-
-## 使用流程
-
-### 1. 配置 LLM
-
-打开插件面板，进入“设置”。
-
-填写：
-
-- Provider
-- API URL
-- Model
-- API Key
-- 思考强度
-
-然后点击 `测试连接`。
-
-如果连接成功，状态栏会显示 HTTP 成功响应。
-
-### 2. 添加单词
-
-在 Zotero PDF 中选中一个英文单词或短语，点击插件提供的添加按钮。
-
-或者直接进入插件面板中的“添加单词”页面手动输入。
-
-点击 `LLM 补全`，检查生成内容后点击保存。
-
-保存后插件会：
-
-1. 保存词条到本地数据库；
-2. 尝试生成复习用混淆释义；
-3. 清空添加表单，方便继续添加下一个词。
-
-### 3. 浏览词库
-
-进入“单词卡片”页面，可以查看当前词条。
-
-使用左右按钮切换词条。
-
-点击发音按钮可以听本地系统发音。
-
-### 4. 查看全部词汇
-
-进入“全部词汇”页面，可以查看完整词汇列表。
-
-支持搜索和 A-Z / Z-A 排序。
-
-### 5. 开始复习
-
-进入“复习”页面。
-
-选择本次复习词数：
-
-- 10
-- 20
-- 30
-- 自定义数量
-
-点击“开始复习”。
-
-插件会从词库中根据错题权重抽取词条，并为每个词条生成三种题型任务。
-
-## 数据结构概览
-
-词条大致结构如下：
-
-```json
-{
-  "id": "term-...",
-  "text": "uncertainty",
-  "normalizedText": "uncertainty",
-  "pronunciation": "/ʌnˈsɜːrtənti/",
-  "chineseMeaning": "不确定性",
-  "contextExplanation": "在机器学习论文中通常表示模型或数据中存在的不确定因素。",
-  "phrases": [
-    "epistemic uncertainty",
-    "aleatoric uncertainty"
-  ],
-  "examples": [
-    {
-      "id": "example-...",
-      "sentence": "The model estimates uncertainty for each prediction.",
-      "createdAt": "..."
-    }
-  ],
-  "reviewDistractors": [
-    {
-      "meaning": "确定性",
-      "sourceTerm": "certainty",
-      "explanation": "词形相近。"
-    }
-  ],
-  "wrongCount": 0,
-  "stats": {
-    "totalReviews": 0
-  },
-  "createdAt": "...",
-  "updatedAt": "..."
-}
-```
-
-## 隐私说明
-
-- 词库数据默认保存在本地 JSON 文件中。
-- 插件不会主动上传完整词库。
-- LLM 补全、测试连接、混淆释义生成会把当前请求所需的词条信息发送到用户配置的 LLM API。
-- API Key 保存在 Zotero preferences 中。
-- 用户可以通过设置页自定义数据库路径。
-
-## 开发说明
-
-插件主体文件包括：
-
-```text
-manifest.json
-bootstrap.js
-prefs.js
-```
-
-当前版本以 Zotero bootstrap plugin 形式实现，主要逻辑集中在 `bootstrap.js` 中。
-
-构建 XPI 的方式是将源码根目录内容压缩为 zip，并改名为 `.xpi`。
-
-macOS / Linux 示例：
+Build from the repository root:
 
 ```bash
-./scripts/build-xpi.sh
+npm run build
 ```
 
-手动构建：
+or:
 
 ```bash
-zip -r dist/zotero-word-learning-0.5.3.xpi manifest.json bootstrap.js prefs.js
+bash scripts/build-xpi.sh
 ```
 
-Windows PowerShell 示例：
+The output is written to `dist/`.
 
-```powershell
-Compress-Archive -Path manifest.json, bootstrap.js, prefs.js -DestinationPath zotero-word-learning-0.5.3.zip
-Rename-Item zotero-word-learning-0.5.3.zip zotero-word-learning-0.5.3.xpi
-```
+## Troubleshooting
 
-## Release 文件
+### The WL button does not appear
 
-每个 release 建议包含：
+Restart Zotero. If it still does not appear, open `Tools` -> `Add-ons`, disable and re-enable the plugin, then restart again.
 
-```text
-zotero-word-learning-<version>.xpi
-Word Learning <version> source.zip
-```
+### LLM Complete fails
 
-## 当前版本
+Check the provider, API URL, model, and API key. Use `Test connection` in Settings and read the returned HTTP status.
 
-```text
-0.5.3
-```
+### The database is empty after changing paths
+
+Check whether the old database file existed and whether Zotero had permission to copy it. If needed, copy the JSON file manually.
+
+### Pronunciation does not play
+
+Check whether your operating system has English voices installed and whether speech synthesis is available in the Zotero runtime.
+
+### Review choices look too generic
+
+Configure an LLM provider and save the term again, or start a review while the API key is available. The plugin can generate stronger distractors when LLM settings are configured.
+
+## Release
+
+Current version: `0.5.3`
+
+Release assets:
+
+- `zotero-word-learning-0.5.3.xpi`
+- `Word Learning 0.5.3 source.zip`
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
