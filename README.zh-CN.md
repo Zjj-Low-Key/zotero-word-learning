@@ -26,6 +26,50 @@ English documentation: [README.md](README.md)
 - 数据存储：默认保存在 Zotero profile 下的本地 JSON 文件。
 - LLM 使用：可选，需要用户在插件设置中自行配置。
 
+## 界面截图
+
+### 添加单词
+
+手动添加新词，或从 Zotero 阅读流程中加入选中的词，再手动填写字段或使用 LLM 补全。
+
+<img src="docs/images/add-word.png" alt="添加单词页面" width="520">
+
+### 单词卡片
+
+以卡片形式浏览已保存词条，查看音标、释义、相关短语、语境解释、例句，并播放本地发音。
+
+<img src="docs/images/word-card.png" alt="单词卡片页面" width="520">
+
+### 修改单词
+
+编辑已保存词条，重新运行 LLM 补全，保存更新，或删除当前词条。
+
+<img src="docs/images/edit-word.png" alt="修改单词页面" width="520">
+
+### 全部词汇
+
+搜索完整词库，切换排序，并从列表项跳转回对应单词卡片。
+
+<img src="docs/images/all-words.png" alt="全部词汇页面" width="520">
+
+### 复习：释义选择
+
+通过中文释义选择题进行主动回忆，并使用不认识、模糊、认识三个按钮记录掌握情况。
+
+<img src="docs/images/review-choice.png" alt="复习释义选择页面" width="520">
+
+### 复习：拼写
+
+根据音标和释义拼写单词或短语，逐字获得反馈，并进入下一题。
+
+<img src="docs/images/review-spelling.png" alt="复习拼写页面" width="520">
+
+### 设置
+
+配置语言、LLM 服务商、API URL、模型、思考强度、API Key 和数据库路径。
+
+<img src="docs/images/settings.png" alt="设置页面" width="520">
+
 ## 功能特性
 
 - 从 Zotero PDF 阅读流程中添加单词和短语。
@@ -62,7 +106,8 @@ English documentation: [README.md](README.md)
 ├── docs/
 │   ├── usage.md
 │   ├── llm-settings.md
-│   └── review-system.md
+│   ├── review-system.md
+│   └── images/
 ├── scripts/
 │   └── build-xpi.sh
 └── dist/
