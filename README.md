@@ -49,8 +49,8 @@ Practice active recall with multiple-choice Chinese meaning questions and mistak
 <img src="docs/images/review-light.png" alt="Review light theme view" width="620">
 
 Configure language, LLM provider, API URL, model, thinking intensity, API key, and database path.
+<img src="docs/images/word-card-dark.png" alt="Word Card dark theme view" width="620">
 
-<img src="docs/images/settings-light.png" alt="Settings light theme view" width="620">
 
 ### Dark Theme
 
@@ -58,7 +58,7 @@ The same workflow is available in the plugin-controlled dark theme.
 
 <img src="docs/images/add-word-dark.png" alt="Add Word dark theme view" width="620">
 
-<img src="docs/images/word-card-dark.png" alt="Word Card dark theme view" width="620">
+<img src="docs/images/settings-light.png" alt="Settings light theme view" width="620">
 
 <img src="docs/images/all-words-dark.png" alt="All Words dark theme view" width="620">
 
