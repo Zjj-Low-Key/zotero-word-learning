@@ -28,47 +28,43 @@ The plugin focuses on a practical reading loop:
 
 ## Screenshots
 
-### Add Word
+The screenshots below show the current Zotero Item Pane layout in both light and dark themes.
+
+### Light Theme
 
 Add a new term manually or from the Zotero reading workflow, then fill fields by hand or with LLM completion.
 
-<img src="docs/images/add-word.png" alt="Add Word view" width="520">
-
-### Word Card
+<img src="docs/images/add-word-light.png" alt="Add Word light theme view" width="620">
 
 Browse saved terms as cards with pronunciation, meaning, related phrases, context explanation, examples, and local pronunciation playback.
 
-<img src="docs/images/word-card.png" alt="Word Card view" width="520">
-
-### Edit Word
-
-Edit a saved term, rerun LLM completion, save updates, or delete the entry.
-
-<img src="docs/images/edit-word.png" alt="Edit Word view" width="520">
-
-### All Words
+<img src="docs/images/word-card-light.png" alt="Word Card light theme view" width="620">
 
 Search the full wordbook, sort terms, and jump from a list item back to the card view.
 
-<img src="docs/images/all-words.png" alt="All Words view" width="520">
-
-### Review: Meaning Choice
+<img src="docs/images/all-words-light.png" alt="All Words light theme view" width="620">
 
 Practice active recall with multiple-choice Chinese meaning questions and mistake-weighted review actions.
 
-<img src="docs/images/review-choice.png" alt="Review meaning choice view" width="520">
-
-### Review: Spelling
-
-Spell the word or phrase from pronunciation and meaning, with per-letter feedback and a next-question flow.
-
-<img src="docs/images/review-spelling.png" alt="Review spelling view" width="520">
-
-### Settings
+<img src="docs/images/review-light.png" alt="Review light theme view" width="620">
 
 Configure language, LLM provider, API URL, model, thinking intensity, API key, and database path.
 
-<img src="docs/images/settings.png" alt="Settings view" width="520">
+<img src="docs/images/settings-light.png" alt="Settings light theme view" width="620">
+
+### Dark Theme
+
+The same workflow is available in the plugin-controlled dark theme.
+
+<img src="docs/images/add-word-dark.png" alt="Add Word dark theme view" width="620">
+
+<img src="docs/images/word-card-dark.png" alt="Word Card dark theme view" width="620">
+
+<img src="docs/images/all-words-dark.png" alt="All Words dark theme view" width="620">
+
+<img src="docs/images/review-dark.png" alt="Review dark theme view" width="620">
+
+<img src="docs/images/settings-dark.png" alt="Settings dark theme view" width="620">
 
 ## Main Features
 

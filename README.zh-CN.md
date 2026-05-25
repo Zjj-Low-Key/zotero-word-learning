@@ -28,47 +28,43 @@ English documentation: [README.md](README.md)
 
 ## 界面截图
 
-### 添加单词
+以下截图展示当前 Zotero Item Pane 中的新版界面布局，并包含日间和夜间两套主题。
+
+### 日间主题
 
 手动添加新词，或从 Zotero 阅读流程中加入选中的词，再手动填写字段或使用 LLM 补全。
 
-<img src="docs/images/add-word.png" alt="添加单词页面" width="520">
-
-### 单词卡片
+<img src="docs/images/add-word-light.png" alt="添加单词日间主题页面" width="620">
 
 以卡片形式浏览已保存词条，查看音标、释义、相关短语、语境解释、例句，并播放本地发音。
 
-<img src="docs/images/word-card.png" alt="单词卡片页面" width="520">
-
-### 修改单词
-
-编辑已保存词条，重新运行 LLM 补全，保存更新，或删除当前词条。
-
-<img src="docs/images/edit-word.png" alt="修改单词页面" width="520">
-
-### 全部词汇
+<img src="docs/images/word-card-light.png" alt="单词卡片日间主题页面" width="620">
 
 搜索完整词库，切换排序，并从列表项跳转回对应单词卡片。
 
-<img src="docs/images/all-words.png" alt="全部词汇页面" width="520">
-
-### 复习：释义选择
+<img src="docs/images/all-words-light.png" alt="全部词汇日间主题页面" width="620">
 
 通过中文释义选择题进行主动回忆，并使用不认识、模糊、认识三个按钮记录掌握情况。
 
-<img src="docs/images/review-choice.png" alt="复习释义选择页面" width="520">
-
-### 复习：拼写
-
-根据音标和释义拼写单词或短语，逐字获得反馈，并进入下一题。
-
-<img src="docs/images/review-spelling.png" alt="复习拼写页面" width="520">
-
-### 设置
+<img src="docs/images/review-light.png" alt="复习日间主题页面" width="620">
 
 配置语言、LLM 服务商、API URL、模型、思考强度、API Key 和数据库路径。
 
-<img src="docs/images/settings.png" alt="设置页面" width="520">
+<img src="docs/images/settings-light.png" alt="设置日间主题页面" width="620">
+
+### 夜间主题
+
+同一套流程也支持插件内部控制的夜间主题。
+
+<img src="docs/images/add-word-dark.png" alt="添加单词夜间主题页面" width="620">
+
+<img src="docs/images/word-card-dark.png" alt="单词卡片夜间主题页面" width="620">
+
+<img src="docs/images/all-words-dark.png" alt="全部词汇夜间主题页面" width="620">
+
+<img src="docs/images/review-dark.png" alt="复习夜间主题页面" width="620">
+
+<img src="docs/images/settings-dark.png" alt="设置夜间主题页面" width="620">
 
 ## 功能特性
 
