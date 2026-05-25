@@ -92,15 +92,15 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.9.8
+## What's New in 0.10.0
 
-Version 0.9.8 fixes a layout regression that appeared after the 0.9.7 architecture upgrade when saving settings inside Zotero's native ItemPane.
+Version 0.10.0 fixes the Reader selection popup regression from the 0.9.9 line while keeping the compact non-invasive button design.
 
-- Added `normalizeNativeItemPaneLayout(win, panel)` for native Zotero ItemPane mode.
-- Prevented `rebuildPanelUI()` from restoring the plugin's fallback header after clicking Save Settings.
-- Removed the plugin-owned fixed-height body and nested internal scrolling in native ItemPane mode.
-- Kept the outer Zotero ItemPane as the only scroll container.
-- Unified first render and later rebuild layout cleanup so the panel no longer starts correct and breaks after saving settings.
+- Removed `setTimeout(addControl, 0)` from the Reader selected-text popup flow.
+- Restored synchronous `append(btn)` during Zotero's popup render lifecycle.
+- Kept the compact single-button design from the 0.9.9 approach.
+- Still avoids large wrapper containers, status rows, and DOM changes to other plugins.
+- Keeps the small blue button style to reduce overlap with Translate and LLM-for-Zotero actions.
 
 ## Repository Structure
 
@@ -110,7 +110,7 @@ Version 0.9.8 fixes a layout regression that appeared after the 0.9.7 architectu
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.8.md
+├── RELEASE_NOTES_v0.10.0.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +131,12 @@ Version 0.9.8 fixes a layout regression that appeared after the 0.9.7 architectu
 
 ## Installation
 
-1. Download `zotero-word-learning-0.9.8.xpi` from the release page.
+1. Download `zotero-word-learning-0.10.0.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.9.8.xpi`.
+6. Select `zotero-word-learning-0.10.0.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -386,12 +386,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.9.8`
+Current version: `0.10.0`
 
 Release assets:
 
-- `zotero-word-learning-0.9.8.xpi`
-- `Word Learning 0.9.8 source no README.zip`
+- `zotero-word-learning-0.10.0.xpi`
+- `Word Learning 0.10.0 source no README.zip`
 
 ## License
 

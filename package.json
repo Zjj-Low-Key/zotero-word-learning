@@ -1,6 +1,6 @@
 {
   "name": "zotero-word-learning",
-  "version": "0.9.8",
+  "version": "0.10.0",
   "description": "A Zotero plugin for academic word learning, LLM-assisted vocabulary completion, and mixed review.",
   "private": true,
   "scripts": {

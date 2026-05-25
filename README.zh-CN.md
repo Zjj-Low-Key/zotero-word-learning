@@ -92,15 +92,14 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.9.8 更新内容
+## 0.10.0 更新内容
 
-0.9.8 修复了 0.9.7 架构升级后在 Zotero 原生 ItemPane 中保存设置时触发的布局回归。
+0.10.0 修复了 0.9.9 这一线在 Reader 选中文本弹窗中的按钮回归，同时保留紧凑、非侵入式的按钮设计。
 
-- 新增 `normalizeNativeItemPaneLayout(win, panel)`，专门处理 Zotero 原生 ItemPane 布局归一化。
-- 修复点击“保存设置”后插件内部 fallback header 被重新加回来的问题。
-- 修复原生 ItemPane 模式下 `wl-body` 恢复成固定高度和内部滚动的问题。
-- 保持 Zotero 原生 ItemPane 作为唯一滚动容器，避免嵌套滚动。
-- 统一首次渲染和后续重建后的布局清理逻辑，解决“第一次正常，保存后变形”的差异。
+- 移除 Reader 弹窗逻辑中的 `setTimeout(addControl, 0)`。
+- 恢复同步 `append(btn)`，保证按钮在 Zotero 弹窗渲染周期内加入。
+- 保留 0.9.9 的非侵入式设计：不再使用大块容器、不再增加状态行、不修改其他插件 DOM、只追加一个紧凑按钮。
+- 保留小型蓝色按钮样式，降低遮挡 Translate 和 LLM-for-Zotero 按钮的风险。
 
 ## 仓库结构
 
@@ -110,7 +109,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.8.md
+├── RELEASE_NOTES_v0.10.0.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +130,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.9.8.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.10.0.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.9.8.xpi`。
+6. 选择 `zotero-word-learning-0.10.0.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -386,12 +385,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.9.8`
+当前版本：`0.10.0`
 
 Release 资产：
 
-- `zotero-word-learning-0.9.8.xpi`
-- `Word Learning 0.9.8 source no README.zip`
+- `zotero-word-learning-0.10.0.xpi`
+- `Word Learning 0.10.0 source no README.zip`
 
 ## 许可证
 

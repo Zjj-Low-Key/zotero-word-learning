@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0
+
+- Removed `setTimeout(addControl, 0)` from the Reader selection popup integration.
+- Restored synchronous `append(btn)` so the Word Learning button is added during Zotero's popup render lifecycle.
+- Kept the 0.9.9 non-invasive Reader popup design: no large wrapper container, no status row, no modification of other plugin DOM, and only one compact action button.
+- Retained the compact blue button style to reduce the risk of covering Translate and LLM-for-Zotero actions.
+
 ## 0.9.8
 
 - Fixed a native Zotero ItemPane layout regression introduced by the 0.9.7 architecture upgrade.
