@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.1
+
+- Stabilized native Zotero right-side Item Pane integration through `Zotero.ItemPaneManager.registerSection(...)`.
+- Kept the right-side `WL` toolbar entry while allowing Word Learning to live inside Zotero's native plugin pane area.
+- Fixed Item Pane header, expand/collapse, and content-area layout issues.
+- Added plugin-controlled light/dark theme mode with `extensions.wordlearning.themeMode`.
+- Added an independent theme toggle button on the right side of the top tab bar.
+- Added bundled sun and moon icons loaded as data URIs with text fallback.
+- Restored semantic review colors for Unknown, Blurred, Known, correct choices, wrong choices, selected choices, and status messages.
+- Added per-character spelling feedback through `data-wl-spell-state="correct"` and `data-wl-spell-state="wrong"`.
+- Updated All Words list, cards, inputs, textareas, selects, chips, and review hints for light and dark themes.
+
 ## 0.5.6
 
 - Changed speech style selection to use locally exposed English voices from `speechSynthesis.getVoices()`.

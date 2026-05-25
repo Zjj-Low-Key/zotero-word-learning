@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Word Learning for Zotero",
-  "version": "0.5.6",
+  "version": "0.9.1",
   "description": "Collect, complete, save, and review English words and phrases while reading papers in Zotero.",
   "author": "zhujiajun",
   "applications": {

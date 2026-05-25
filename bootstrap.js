@@ -4,6 +4,8 @@ var WordLearningPlugin = {
   id: null,
   version: null,
   rootURI: null,
+  nativePanelRegistered: false,
+  nativePaneID: 'word-learning-item-pane',
   readerSelectionHandler: null,
   lastSelectionPayload: null,
   selectedIdByWindow: new WeakMap(),
@@ -20,13 +22,29 @@ var WordLearningPlugin = {
     this.id = data && data.id;
     this.version = data && data.version;
     this.rootURI = data && data.rootURI;
-    this.addToAllWindows();
-    this.registerReaderSelectionPopup();
-    this.debug('startup ' + this.version);
+    var plugin = this;
+    Promise.all([
+      Zotero.initializationPromise || Promise.resolve(),
+      Zotero.unlockPromise || Promise.resolve(),
+      Zotero.uiReadyPromise || Promise.resolve()
+    ]).then(function () {
+      plugin.registerNativeItemPaneSection();
+      plugin.addToAllWindows();
+      plugin.registerReaderSelectionPopup();
+      plugin.debug('startup ' + plugin.version);
+    }).catch(function (e) {
+      plugin.debug('startup readiness failed: ' + e);
+      plugin.nativePanelRegistered = false;
+      plugin.addToAllWindows();
+      plugin.registerReaderSelectionPopup();
+    });
   },
 
   shutdown(data, reason) {
     this.unregisterReaderSelectionPopup();
+    // Do not manually unregister ItemPaneManager section during repeated dev installs;
+    // Zotero may already have removed it, which logs "Can't remove unknown option".
+    this.nativePanelRegistered = false;
     this.removeFromAllWindows();
     this.debug('shutdown');
   },
@@ -36,6 +54,8 @@ var WordLearningPlugin = {
 
   onMainWindowLoad(data) {
     if (data && data.window) {
+      this.loadNativeLocale(data.window);
+      this.registerNativeItemPaneSection();
       this.addToWindow(data.window);
     }
   },
@@ -50,6 +70,870 @@ var WordLearningPlugin = {
     try {
       Zotero.debug('[WordLearning] ' + message);
     } catch (e) {}
+  },
+
+
+
+  loadNativeLocale(win) {
+    try {
+      if (win && win.MozXULElement && win.MozXULElement.insertFTLIfNeeded) {
+        win.MozXULElement.insertFTLIfNeeded('word-learning.ftl');
+      }
+    } catch (e) {
+      this.debug('loadNativeLocale failed: ' + e);
+    }
+  },
+
+
+  isDarkMode(win, panel) {
+    function avgRGB(bg) {
+      try {
+        var nums = String(bg || '').match(/\d+/g) || [];
+        if (nums.length >= 3) {
+          return (parseInt(nums[0], 10) + parseInt(nums[1], 10) + parseInt(nums[2], 10)) / 3;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    try {
+      var doc = win && win.document;
+      var root = doc && doc.documentElement;
+      var body = doc && doc.body;
+
+      // Prefer explicit Zotero/Firefox theme signals.
+      var attr = [
+        root && root.getAttribute('data-theme'),
+        body && body.getAttribute('data-theme'),
+        root && root.getAttribute('color-scheme'),
+        body && body.getAttribute('color-scheme'),
+        root && root.getAttribute('lwtheme'),
+        body && body.getAttribute('lwtheme'),
+        root && root.className,
+        body && body.className
+      ].join(' ');
+      if (/\blight\b/i.test(attr)) return false;
+      if (/\bdark\b|\bnight\b/i.test(attr)) return true;
+
+      // Sample stable Zotero UI containers, excluding Word Learning itself.
+      // Previous builds sampled the WL panel's own ancestors and got stuck dark
+      // after switching Zotero back to light mode.
+      var selectors = [
+        '#zotero-tb',
+        '#zotero-pane',
+        '#zotero-item-pane',
+        '#zotero-context-pane',
+        '.zotero-context-pane',
+        '.item-pane',
+        '.reader-sidebar',
+        '.context-pane',
+        'body'
+      ];
+      for (var i = 0; i < selectors.length; i++) {
+        var el = doc.querySelector(selectors[i]);
+        if (!el) continue;
+        if (panel && (el === panel || el.contains(panel))) continue;
+        var cs = win.getComputedStyle ? win.getComputedStyle(el) : null;
+        var avg = cs ? avgRGB(cs.backgroundColor) : null;
+        if (avg !== null) {
+          if (avg > 170) return false;
+          if (avg < 95) return true;
+        }
+      }
+
+      // As a last DOM fallback, sample document/body only.
+      var bg = win.getComputedStyle ? win.getComputedStyle(body || root).backgroundColor : '';
+      var avg2 = avgRGB(bg);
+      if (avg2 !== null) {
+        if (avg2 > 170) return false;
+        if (avg2 < 95) return true;
+      }
+    } catch (e) {}
+
+    // Final fallback only.
+    try {
+      return !!(win && win.matchMedia && win.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (e) {}
+    return false;
+  },
+
+  installThemeStyles(win, panel) {
+    try {
+      if (!win || !win.document || !panel) return;
+      var doc = win.document;
+      var styleID = 'wl-system-theme-style-v080';
+      if (!doc.getElementById(styleID)) {
+        var st = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
+        st.id = styleID;
+        st.textContent = `
+/* Word Learning 0.8.1: explicit Zotero-aware light/dark palette + semantic review colors. */
+#wl-panel-v026 {
+  --wl-bg: #f6f7f9;
+  --wl-surface: #ffffff;
+  --wl-surface-2: #f8fafc;
+  --wl-text: #111827;
+  --wl-text-muted: #4b5563;
+  --wl-border: #d1d5db;
+  --wl-input-bg: #ffffff;
+  --wl-button-bg: #ffffff;
+  --wl-button-hover: #f3f4f6;
+  --wl-chip-bg: #f3f4f6;
+  --wl-chip-text: #374151;
+  --wl-blue: #2d7ff9;
+  --wl-red-bg: #fef2f2;
+  --wl-red-border: #fecaca;
+  --wl-red-text: #991b1b;
+  --wl-orange-bg: #fff7ed;
+  --wl-orange-border: #fed7aa;
+  --wl-orange-text: #c2410c;
+  --wl-green-bg: #f0fdf4;
+  --wl-green-border: #bbf7d0;
+  --wl-green-text: #166534;
+  color-scheme: light;
+}
+#wl-panel-v026[data-wl-theme="dark"] {
+  --wl-bg: #2b2b2b;
+  --wl-surface: #242424;
+  --wl-surface-2: #303030;
+  --wl-text: #f3f4f6;
+  --wl-text-muted: #d1d5db;
+  --wl-border: #555555;
+  --wl-input-bg: #1f1f1f;
+  --wl-button-bg: #3a3a3a;
+  --wl-button-hover: #464646;
+  --wl-chip-bg: #4a4a4a;
+  --wl-chip-text: #f3f4f6;
+  --wl-blue: #3b82f6;
+  --wl-red-bg: #3a1f22;
+  --wl-red-border: #ef4444;
+  --wl-red-text: #fecaca;
+  --wl-orange-bg: #3b2a18;
+  --wl-orange-border: #f59e0b;
+  --wl-orange-text: #fed7aa;
+  --wl-green-bg: #153520;
+  --wl-green-border: #22c55e;
+  --wl-green-text: #bbf7d0;
+  color-scheme: dark;
+}
+}
+
+#wl-panel-v026[data-wl-theme="dark"] {
+  --wl-bg: #2b2b2b;
+  --wl-surface: #242424;
+  --wl-surface-2: #303030;
+  --wl-text: #f3f4f6;
+  --wl-text-muted: #d1d5db;
+  --wl-border: #555555;
+  --wl-input-bg: #1f1f1f;
+  --wl-button-bg: #3a3a3a;
+  --wl-button-hover: #464646;
+  --wl-chip-bg: #4a4a4a;
+  --wl-chip-text: #f3f4f6;
+  --wl-blue: #3b82f6;
+  --wl-red-bg: #3a1f22;
+  --wl-red-border: #ef4444;
+  --wl-red-text: #fecaca;
+  --wl-orange-bg: #3b2a18;
+  --wl-orange-border: #f59e0b;
+  --wl-orange-text: #fed7aa;
+  --wl-green-bg: #153520;
+  --wl-green-border: #22c55e;
+  --wl-green-text: #bbf7d0;
+  color-scheme: dark;
+}
+
+#wl-panel-v026[data-wl-theme="light"] {
+  --wl-bg: #f6f7f9;
+  --wl-surface: #ffffff;
+  --wl-surface-2: #f8fafc;
+  --wl-text: #111827;
+  --wl-text-muted: #4b5563;
+  --wl-border: #d1d5db;
+  --wl-input-bg: #ffffff;
+  --wl-button-bg: #ffffff;
+  --wl-button-hover: #f3f4f6;
+  --wl-chip-bg: #f3f4f6;
+  --wl-chip-text: #374151;
+  --wl-blue: #2d7ff9;
+  --wl-red-bg: #fef2f2;
+  --wl-red-border: #fecaca;
+  --wl-red-text: #991b1b;
+  --wl-orange-bg: #fff7ed;
+  --wl-orange-border: #fed7aa;
+  --wl-orange-text: #c2410c;
+  --wl-green-bg: #f0fdf4;
+  --wl-green-border: #bbf7d0;
+  --wl-green-text: #166534;
+  color-scheme: light;
+}
+#wl-panel-v026,
+#wl-panel-v026 [data-role="wl-root"],
+#wl-panel-v026 [data-role="wl-body"],
+#wl-panel-v026 [data-view],
+#wl-panel-v026 [data-wl-page],
+#wl-panel-v026 [data-role="wl-tabs"] {
+  background: var(--wl-bg) !important;
+  color: var(--wl-text) !important;
+}
+#wl-panel-v026 * {
+  box-sizing: border-box;
+}
+#wl-panel-v026 div,
+#wl-panel-v026 span,
+#wl-panel-v026 label,
+#wl-panel-v026 p,
+#wl-panel-v026 h1,
+#wl-panel-v026 h2,
+#wl-panel-v026 h3,
+#wl-panel-v026 strong,
+#wl-panel-v026 b {
+  color: var(--wl-text) !important;
+}
+#wl-panel-v026 [style*="color: #111827"],
+#wl-panel-v026 [style*="color:#111827"],
+#wl-panel-v026 [style*="color: rgb(17, 24, 39)"],
+#wl-panel-v026 [style*="color: #374151"],
+#wl-panel-v026 [style*="color:#374151"],
+#wl-panel-v026 [style*="color: rgb(55, 65, 81)"],
+#wl-panel-v026 [style*="color: #4b5563"],
+#wl-panel-v026 [style*="color:#4b5563"],
+#wl-panel-v026 [style*="color: #6b7280"],
+#wl-panel-v026 [style*="color:#6b7280"],
+#wl-panel-v026 [style*="color: #9ca3af"],
+#wl-panel-v026 [style*="color:#9ca3af"] {
+  color: var(--wl-text-muted) !important;
+}
+#wl-panel-v026 input,
+#wl-panel-v026 textarea,
+#wl-panel-v026 select {
+  background: var(--wl-input-bg) !important;
+  color: var(--wl-text) !important;
+  border: 1px solid var(--wl-border) !important;
+  caret-color: var(--wl-text) !important;
+}
+#wl-panel-v026 input::placeholder,
+#wl-panel-v026 textarea::placeholder {
+  color: var(--wl-text-muted) !important;
+  opacity: .75 !important;
+}
+#wl-panel-v026 button {
+  background: var(--wl-button-bg) !important;
+  color: var(--wl-text) !important;
+  border: 1px solid var(--wl-border) !important;
+  box-shadow: none !important;
+}
+#wl-panel-v026 button:hover {
+  background: var(--wl-button-hover) !important;
+}
+#wl-panel-v026 button.wl-active,
+#wl-panel-v026 button[data-wl-active="1"],
+#wl-panel-v026 button[data-primary="1"],
+#wl-panel-v026 .wl-primary {
+  background: var(--wl-blue) !important;
+  color: white !important;
+  border-color: var(--wl-blue) !important;
+}
+#wl-panel-v026 [style*="background: #fff"],
+#wl-panel-v026 [style*="background:#fff"],
+#wl-panel-v026 [style*="background: #ffffff"],
+#wl-panel-v026 [style*="background:#ffffff"],
+#wl-panel-v026 [style*="background: white"],
+#wl-panel-v026 [style*="background:white"],
+#wl-panel-v026 [style*="background: rgb(255, 255, 255)"],
+#wl-panel-v026 [style*="background-color: rgb(255, 255, 255)"],
+#wl-panel-v026 [style*="#f8fafc"],
+#wl-panel-v026 [style*="#f3f4f6"],
+#wl-panel-v026 [style*="#eff6ff"] {
+  background: var(--wl-surface) !important;
+  color: var(--wl-text) !important;
+}
+#wl-panel-v026 [data-role="review-card"],
+#wl-panel-v026 [data-role="card-display"],
+#wl-panel-v026 [data-role="allwords-list"],
+#wl-panel-v026 [data-view="addword"] > div,
+#wl-panel-v026 [data-view="settings"] > div,
+#wl-panel-v026 [data-view="review"] > div,
+#wl-panel-v026 [data-view="allwords"] > div {
+  background: var(--wl-surface) !important;
+  color: var(--wl-text) !important;
+  border-color: var(--wl-border) !important;
+  box-shadow: none !important;
+}
+#wl-panel-v026 [data-role="allwords-list"] > div {
+  background: var(--wl-surface) !important;
+  color: var(--wl-text) !important;
+  border-bottom-color: var(--wl-border) !important;
+}
+#wl-panel-v026 [data-role="allwords-list"] > div:hover {
+  background: var(--wl-surface-2) !important;
+}
+#wl-panel-v026 [data-role="allwords-list"] > div[aria-selected="true"],
+#wl-panel-v026 [data-role="allwords-list"] > div[data-selected="1"] {
+  background: color-mix(in srgb, var(--wl-blue) 22%, var(--wl-surface)) !important;
+}
+#wl-panel-v026 [data-role="phrase-pill"],
+#wl-panel-v026 [data-role="related-phrase"],
+#wl-panel-v026 [data-role="term-phrase"],
+#wl-panel-v026 .wl-phrase-pill,
+#wl-panel-v026 span[style*="#f3f4f6"],
+#wl-panel-v026 span[style*="rgb(243, 244, 246)"] {
+  background: var(--wl-chip-bg) !important;
+  color: var(--wl-chip-text) !important;
+  border-color: var(--wl-border) !important;
+  opacity: 1 !important;
+}
+#wl-panel-v026 [data-role="review-choices"] button {
+  background: var(--wl-surface) !important;
+  color: var(--wl-text) !important;
+  border-color: var(--wl-border) !important;
+}
+#wl-panel-v026 [data-role="review-choices"] button[data-wl-review-state="correct"] {
+  background: var(--wl-green-bg) !important;
+  color: var(--wl-green-text) !important;
+  border-color: var(--wl-green-border) !important;
+}
+#wl-panel-v026 [data-role="review-choices"] button[data-wl-review-state="wrong"] {
+  background: var(--wl-red-bg) !important;
+  color: var(--wl-red-text) !important;
+  border-color: var(--wl-red-border) !important;
+}
+#wl-panel-v026 [data-role="review-choices"] button[data-wl-review-state="selected"] {
+  background: var(--wl-surface-2) !important;
+  color: var(--wl-text) !important;
+  border-color: var(--wl-border) !important;
+}
+#wl-panel-v026 [data-role="review-grade-again"],
+#wl-panel-v026 [data-review-grade="again"] {
+  background: var(--wl-red-bg) !important;
+  color: var(--wl-red-text) !important;
+  border-color: var(--wl-red-border) !important;
+}
+#wl-panel-v026 [data-role="review-grade-hard"],
+#wl-panel-v026 [data-review-grade="hard"] {
+  background: var(--wl-orange-bg) !important;
+  color: var(--wl-orange-text) !important;
+  border-color: var(--wl-orange-border) !important;
+}
+#wl-panel-v026 [data-role="review-grade-known"],
+#wl-panel-v026 [data-review-grade="known"] {
+  background: var(--wl-green-bg) !important;
+  color: var(--wl-green-text) !important;
+  border-color: var(--wl-green-border) !important;
+}
+#wl-panel-v026 [data-role$="status"],
+#wl-panel-v026 [data-role*="status"],
+#wl-panel-v026 [data-review="answer"] {
+  background: var(--wl-surface-2) !important;
+  color: var(--wl-text) !important;
+  border-color: var(--wl-border) !important;
+}
+#wl-panel-v026 [data-wl-status-state="ok"] {
+  background: var(--wl-green-bg) !important;
+  color: var(--wl-green-text) !important;
+}
+#wl-panel-v026 [data-wl-status-state="err"] {
+  background: var(--wl-red-bg) !important;
+  color: var(--wl-red-text) !important;
+}
+#wl-panel-v026 a,
+#wl-panel-v026 svg {
+  color: var(--wl-blue) !important;
+  stroke: currentColor !important;
+}
+
+#wl-panel-v026 input[data-role="review-spell-char"] {
+  background: var(--wl-input-bg) !important;
+  color: var(--wl-text) !important;
+  border-color: var(--wl-border) !important;
+  border-bottom-color: var(--wl-border) !important;
+}
+#wl-panel-v026 input[data-role="review-spell-char"][data-wl-spell-state="correct"] {
+  background: var(--wl-green-bg) !important;
+  color: var(--wl-green-text) !important;
+  border-color: var(--wl-green-border) !important;
+  border-bottom-color: var(--wl-green-border) !important;
+}
+#wl-panel-v026 input[data-role="review-spell-char"][data-wl-spell-state="wrong"] {
+  background: var(--wl-red-bg) !important;
+  color: var(--wl-red-text) !important;
+  border-color: var(--wl-red-border) !important;
+  border-bottom-color: var(--wl-red-border) !important;
+}
+
+
+#wl-panel-v026 [data-role="wl-tab-actions"] {
+  margin-left: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+}
+#wl-panel-v026 [data-role="theme-toggle"] {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-left: 0 !important;
+  position: relative !important;
+  z-index: 2 !important;
+  opacity: 1 !important;
+  overflow: hidden !important;
+}
+
+#wl-panel-v026 [data-role="theme-toggle"] img {
+  width: 22px !important;
+  height: 22px !important;
+  display: block !important;
+  object-fit: contain !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+}
+#wl-panel-v026[data-wl-theme="light"] [data-role="theme-toggle"] {
+  background: #ffffff !important;
+  color: #f59e0b !important;
+  border-color: #d1d5db !important;
+}
+#wl-panel-v026[data-wl-theme="dark"] [data-role="theme-toggle"] {
+  background: #3a3a3a !important;
+  color: #f8fafc !important;
+  border-color: #555555 !important;
+}
+
+#wl-panel-v026 input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+`;
+        (doc.head || doc.documentElement).appendChild(st);
+      }
+      panel.classList.remove('wl-dark');
+      panel.classList.remove('wl-light');
+      panel.classList.remove('wl-zotero-dark');
+      panel.classList.remove('wl-zotero-light');
+      panel.classList.add('wl-system');
+      this.applyManualTheme(win, panel);
+    } catch (e) {
+      this.debug('installThemeStyles failed: ' + e);
+    }
+  },
+
+  restoreThemeInlineOverrides(panel) {
+    try {
+      if (!panel) return;
+      var nodes = Array.prototype.slice.call(panel.querySelectorAll('[data-wl-dark-props]'));
+      if (panel.dataset && panel.dataset.wlDarkProps) nodes.unshift(panel);
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        var props = (el.dataset.wlDarkProps || '').split(',').filter(Boolean);
+        for (var p = 0; p < props.length; p++) {
+          try { el.style.removeProperty(props[p]); } catch (e) {}
+        }
+        try { delete el.dataset.wlDarkProps; } catch (e) { el.removeAttribute('data-wl-dark-props'); }
+      }
+    } catch (e) {}
+  },
+
+  markDarkStyle(el, prop, value) { return; },
+
+  markDarkStyle(el, prop, value) {
+    try {
+      if (!el || !el.style) return;
+      if (!el.dataset.wlDarkProps) el.dataset.wlDarkProps = '';
+      var props = el.dataset.wlDarkProps ? el.dataset.wlDarkProps.split(',') : [];
+      if (props.indexOf(prop) < 0) {
+        props.push(prop);
+        el.dataset.wlDarkProps = props.join(',');
+      }
+      el.style.setProperty(prop, value, 'important');
+    } catch (e) {}
+  },
+
+  restoreLightElements(panel) { this.restoreThemeInlineOverrides(panel); },
+
+
+  normalizeDarkElements(win, panel) { this.restoreThemeInlineOverrides(panel); },
+
+
+  refreshTheme(win) {
+    try {
+      var p = this.panel(win);
+      if (!p) return;
+      this.installThemeStyles(win, p);
+    } catch (e) {}
+  },
+
+
+  setupThemeWatcher(win, panel) { return; },
+
+
+  normalizeDarkSpecificWidgets(win, panel) { this.restoreThemeInlineOverrides(panel); },
+
+
+  themePrefKey: 'extensions.wordlearning.themeMode',
+
+  getThemeMode(win) {
+    try {
+      var value = Zotero.Prefs.get(this.themePrefKey, true);
+      if (value === 'dark' || value === 'light') return value;
+    } catch (e) {}
+    return 'light';
+  },
+
+  setThemeMode(win, mode) {
+    try {
+      Zotero.Prefs.set(this.themePrefKey, mode === 'dark' ? 'dark' : 'light', true);
+    } catch (e) {}
+    try {
+      var panel = this.panel(win);
+      if (panel) {
+        this.applyManualTheme(win, panel);
+        this.renderThemeToggle(win);
+      }
+    } catch (e) {}
+  },
+
+  applyManualTheme(win, panel) {
+    try {
+      if (!panel) return;
+      var mode = this.getThemeMode(win);
+      panel.setAttribute('data-wl-theme', mode === 'dark' ? 'dark' : 'light');
+      panel.classList.remove('wl-dark');
+      panel.classList.remove('wl-light');
+      panel.classList.remove('wl-zotero-dark');
+      panel.classList.remove('wl-zotero-light');
+      panel.classList.add('wl-system');
+      this.restoreThemeInlineOverrides(panel);
+    } catch (e) {}
+  },
+
+  syncZoteroThemeAttribute(win, panel) {
+    // Kept for compatibility with older calls. From 0.8.6 onward the palette is
+    // controlled by Word Learning's own sun/moon toggle, not Zotero/macOS detection.
+    this.applyManualTheme(win, panel);
+  },
+
+  themeSunIconURL() {
+    return 'data:image/png;base64,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';
+  },
+
+  themeMoonIconURL() {
+    return 'data:image/png;base64,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';
+  },
+
+  fillThemeToggleButton(doc, btn, mode) {
+    try {
+      if (!btn) return;
+      var iconURL = mode === 'dark' ? this.themeMoonIconURL() : this.themeSunIconURL();
+      btn.textContent = '';
+      btn.innerHTML = '';
+      var img = doc.createElementNS('http://www.w3.org/1999/xhtml', 'img');
+      img.setAttribute('alt', mode === 'dark' ? 'dark' : 'light');
+      img.setAttribute('src', iconURL);
+      img.style.width = '22px';
+      img.style.height = '22px';
+      img.style.display = 'block';
+      img.style.objectFit = 'contain';
+      img.style.opacity = '1';
+      img.addEventListener('error', function () {
+        try { btn.textContent = mode === 'dark' ? '☾' : '☀'; } catch (e) {}
+      });
+      btn.appendChild(img);
+      btn.style.backgroundImage = 'url(' + iconURL + ')';
+      btn.style.backgroundRepeat = 'no-repeat';
+      btn.style.backgroundPosition = 'center';
+      btn.style.backgroundSize = '22px 22px';
+      btn.setAttribute('aria-label', mode === 'dark' ? 'Dark mode' : 'Light mode');
+      btn.title = mode === 'dark'
+        ? (this.isChineseUI() ? '当前：夜间模式，点击切换日间模式' : 'Dark mode. Click for light mode.')
+        : (this.isChineseUI() ? '当前：日间模式，点击切换夜间模式' : 'Light mode. Click for dark mode.');
+    } catch (e) {
+      try { btn.textContent = mode === 'dark' ? '☾' : '☀'; } catch (_) {}
+    }
+  },
+
+  renderThemeToggle(win) {
+    try {
+      var ids = this.ids();
+      var p = this.panel(win);
+      if (!p) return;
+      var doc = p.ownerDocument;
+      var root = doc.getElementById(ids.root) || p.querySelector('[data-role="wl-root"]') || p;
+      var tabs = root.querySelector('[data-role="wl-tabs"]');
+      if (!tabs) return;
+
+      var actions = root.querySelector('[data-role="wl-tab-actions"]');
+      if (!actions) {
+        actions = this.html(doc, 'div', { dataset: { role: 'wl-tab-actions' } });
+        tabs.appendChild(actions);
+      }
+
+      var btn = root.querySelector('[data-role="theme-toggle"]');
+      if (!btn) {
+        btn = this.smallButton(doc, '');
+        btn.dataset.role = 'theme-toggle';
+        btn.addEventListener('click', (event) => {
+          try {
+            event.preventDefault();
+            event.stopPropagation();
+          } catch (e) {}
+          var current = this.getThemeMode(win);
+          this.setThemeMode(win, current === 'dark' ? 'light' : 'dark');
+        });
+        actions.appendChild(btn);
+      } else if (btn.parentElement !== actions) {
+        actions.appendChild(btn);
+      }
+
+      var mode = this.getThemeMode(win);
+      var buttons = root.querySelectorAll('[data-role="theme-toggle"]');
+      for (var i = 0; i < buttons.length; i++) {
+        this.fillThemeToggleButton(doc, buttons[i], mode);
+      }
+    } catch (e) {
+      this.debug('renderThemeToggle failed: ' + e);
+    }
+  },
+
+  nativeIconURL() {
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+      '<rect x="2" y="2" width="20" height="20" rx="5" fill="#2d7ff9"/>' +
+      '<text x="12" y="15.7" text-anchor="middle" font-size="9.5" font-family="Arial, Helvetica, sans-serif" font-weight="800" fill="white">WL</text>' +
+      '</svg>'
+    );
+  },
+
+  decorateNativeSectionHeader(body) {
+    try {
+      if (!body || !body.ownerDocument) return;
+      var doc = body.ownerDocument;
+      var candidates = [];
+      function add(n) { if (n && candidates.indexOf(n) < 0) candidates.push(n); }
+
+      var cur = body;
+      for (var d = 0; cur && d < 8; d++, cur = cur.parentElement) {
+        add(cur.previousElementSibling);
+        add(cur.firstElementChild);
+        if (cur.parentElement) {
+          add(cur.parentElement.previousElementSibling);
+          add(cur.parentElement.firstElementChild);
+        }
+      }
+
+      var header = null;
+      for (var i = 0; i < candidates.length; i++) {
+        var n = candidates[i];
+        if (!n || !n.getBoundingClientRect) continue;
+        var r = n.getBoundingClientRect();
+        if (!r || r.height < 16 || r.height > 54 || r.width < 120) continue;
+        var text = (n.textContent || '').trim();
+        if (text.indexOf('Word Learning') >= 0 || text === '' || text === 'WL' || text.length < 40) {
+          header = n;
+          break;
+        }
+      }
+      if (!header) return;
+
+      // Remove decorations from previous builds. Do not touch Zotero's native icon/arrow.
+      var oldLabels = Array.prototype.slice.call(header.querySelectorAll('[data-role="wl-native-title-label"], [data-role="wl-native-title-spacer"], [data-role="wl-native-header-label"], [data-role="wl-native-header-version"], [data-role="wl-native-header-icon"]'));
+      for (var od = 0; od < oldLabels.length; od++) {
+        if (oldLabels[od].parentNode) oldLabels[od].parentNode.removeChild(oldLabels[od]);
+      }
+
+      // If Zotero itself has started rendering the label correctly, do nothing.
+      // Note: after removing our old labels above, this only catches native text.
+      if ((header.textContent || '').indexOf('Word Learning') >= 0) return;
+
+      var headerRect = header.getBoundingClientRect ? header.getBoundingClientRect() : null;
+      if (!headerRect) return;
+
+      // Find the left native WL icon by geometry. The previous flex/grid insertion
+      // was unreliable because Zotero's header layout can center inserted children.
+      var iconNode = null;
+      var iconRect = null;
+      var nodes = [];
+      try { nodes = Array.prototype.slice.call(header.querySelectorAll('*')); } catch (e) { nodes = []; }
+      for (var ic = 0; ic < nodes.length; ic++) {
+        var n2 = nodes[ic];
+        var rr = n2.getBoundingClientRect ? n2.getBoundingClientRect() : null;
+        if (!rr || rr.width <= 0 || rr.height <= 0) continue;
+        var txt = (n2.textContent || '').trim();
+        var isGraphic = /^(img|svg|image)$/i.test(n2.localName || n2.tagName || '');
+        var isWL = txt === 'WL';
+        var small = rr.width <= 32 && rr.height <= 32;
+        var nearLeft = rr.left >= headerRect.left - 2 && rr.left < headerRect.left + Math.max(48, headerRect.width * 0.22);
+        if ((isGraphic || isWL) && small && nearLeft) {
+          iconNode = n2;
+          iconRect = rr;
+          break;
+        }
+      }
+
+      // Fallback position: just after the usual left icon slot.
+      var left = 26;
+      if (iconRect) {
+        left = Math.max(22, Math.round(iconRect.right - headerRect.left + 6));
+      }
+
+      var label = doc.createElementNS('http://www.w3.org/1999/xhtml', 'span');
+      label.setAttribute('data-role', 'wl-native-title-label');
+      label.textContent = 'Word Learning';
+      label.style.position = 'absolute';
+      label.style.left = left + 'px';
+      label.style.top = '50%';
+      label.style.transform = 'translateY(-50%)';
+      label.style.color = '#6b7280';
+      label.style.fontSize = '12px';
+      label.style.fontWeight = '600';
+      label.style.whiteSpace = 'nowrap';
+      label.style.lineHeight = '1';
+      label.style.pointerEvents = 'none';
+      label.style.zIndex = '1';
+
+      // Make the native header a positioning context, but do not modify its
+      // flex/grid layout. This keeps the native expand/collapse button untouched.
+      if (!header.style.position || header.style.position === 'static') {
+        header.style.position = 'relative';
+      }
+      header.appendChild(label);
+    } catch (e) {
+      this.debug('decorateNativeSectionHeader failed: ' + e);
+    }
+  },
+
+  registerNativeItemPaneSection() {
+    if (this.nativePanelRegistered) return true;
+    try {
+      if (!Zotero || !Zotero.ItemPaneManager || !Zotero.ItemPaneManager.registerSection) {
+        this.debug('ItemPaneManager.registerSection unavailable; using fallback UI');
+        return false;
+      }
+      var plugin = this;
+      Zotero.ItemPaneManager.registerSection({
+        paneID: this.nativePaneID,
+        pluginID: this.id || 'word-learning@zotero.local',
+        header: {
+          label: 'Word Learning',
+          l10nID: 'word-learning-panel-head',
+          icon: this.nativeIconURL()
+        },
+        sidenav: {
+          label: 'Word Learning',
+          l10nID: 'word-learning-panel-sidenav-tooltip',
+          icon: this.nativeIconURL()
+        },
+        onItemChange: function (ctx) {
+          try {
+            if (ctx && typeof ctx.setEnabled === 'function') {
+              ctx.setEnabled(ctx.tabType === 'reader' || ctx.tabType === 'library');
+            }
+          } catch (e) {}
+          return true;
+        },
+        onRender: function (ctx) {
+          var body = ctx && ctx.body;
+          if (!body) return;
+          var win = body.ownerDocument.defaultView;
+          while (body.firstChild) body.removeChild(body.firstChild);
+          var panel = plugin.html(body.ownerDocument, 'div', {
+            id: plugin.ids.panel,
+            dataset: { native: '1', embedded: '1' },
+            styleObj: {
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              minHeight: '420px',
+              overflow: 'hidden',
+              background: 'Canvas',
+              color: 'CanvasText',
+              fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+              fontSize: '13px',
+              lineHeight: '1.45'
+            }
+          });
+          body.appendChild(panel);
+          plugin.installThemeStyles(win, panel);
+          plugin.buildPanel(win, panel);
+          plugin.renderThemeToggle(win);
+          plugin.setupThemeWatcher(win, panel);
+          plugin.decorateNativeSectionHeader(body);
+          // Zotero already provides native header/collapse/sidenav. Remove our
+          // internal header so the panel behaves like Translate/LLM-for-Zotero.
+          var internalHeader = panel.querySelector('[data-role="wl-section-header"]');
+          if (internalHeader && internalHeader.parentNode) {
+            internalHeader.parentNode.removeChild(internalHeader);
+          }
+          var root = panel.querySelector('[data-role="wl-root"]');
+          if (root) {
+            root.style.height = '100%';
+            root.style.background = 'Canvas';
+          }
+          var bodyNode = panel.querySelector('[data-role="wl-body"]');
+          if (bodyNode) {
+            bodyNode.style.flex = '1';
+            bodyNode.style.maxHeight = '';
+            bodyNode.style.overflow = 'auto';
+          }
+          plugin.loadSettings(win);
+          plugin.normalizeDarkElements(win, panel);
+          plugin.normalizeDarkSpecificWidgets(win, panel);
+        },
+        onAsyncRender: async function (ctx) {
+          try {
+            var body = ctx && ctx.body;
+            var win = body && body.ownerDocument ? body.ownerDocument.defaultView : plugin.getMainWindow();
+            if (win) await plugin.refreshTerms(win);
+            if (plugin.lastSelectionPayload && win) {
+              plugin.switchTab(plugin.panel(win), 'addword');
+              plugin.setAddDraft(win, { text: plugin.lastSelectionPayload.text, example: plugin.lastSelectionPayload.text });
+            }
+          } catch (e) {
+            plugin.debug('native onAsyncRender failed: ' + e);
+          }
+        }
+      });
+      this.nativePanelRegistered = true;
+      try {
+        var pluginRef = this;
+        var winRef = this.getMainWindow();
+        if (winRef) {
+          winRef.setTimeout(function () {
+            try {
+              if (pluginRef.nativePanelRegistered && !winRef.document.getElementById(pluginRef.ids.panel)) {
+                pluginRef.debug('native section registered but not rendered yet; keeping native mode without manual injection');
+              }
+            } catch (e) {}
+          }, 2500);
+        }
+      } catch (e) {}
+      this.debug('registered native ItemPaneManager section');
+      return true;
+    } catch (e) {
+      this.nativePanelRegistered = false;
+      this.debug('registerNativeItemPaneSection failed: ' + e);
+      return false;
+    }
+  },
+
+  unregisterNativeItemPaneSection() {
+    try {
+      if (this.nativePanelRegistered && Zotero && Zotero.ItemPaneManager) {
+        if (typeof Zotero.ItemPaneManager.unregisterSection === 'function') {
+          Zotero.ItemPaneManager.unregisterSection(this.nativePaneID);
+        } else if (typeof Zotero.ItemPaneManager.unregister === 'function') {
+          Zotero.ItemPaneManager.unregister(this.nativePaneID);
+        }
+      }
+    } catch (e) {}
+    this.nativePanelRegistered = false;
   },
 
   getMainWindow() {
@@ -98,9 +982,12 @@ var WordLearningPlugin = {
     }
     this.removeFromWindow(win);
     this.exposeHost(win);
-    this.injectButton(win);
     this.injectToolsMenu(win);
-    this.ensurePanel(win);
+    if (!this.nativePanelRegistered) {
+      // Fallback only. Normal Zotero 7+ path is ItemPaneManager.registerSection().
+      this.injectButton(win);
+      this.ensurePanel(win);
+    }
   },
 
   removeFromWindow(win) {
@@ -224,41 +1111,154 @@ var WordLearningPlugin = {
   },
 
   cssButton() {
+    // Fallback flat launcher when no Zotero right icon rail is found.
     return {
       position: 'fixed',
-      right: '0px',
-      top: '190px',
+      right: '7px',
+      top: '170px',
       zIndex: '2147483646',
-      minWidth: '42px',
-      minHeight: '58px',
-      padding: '6px 4px',
-      borderRadius: '8px 0 0 8px',
-      border: '1px solid rgba(0,0,0,.2)',
-      borderRight: '0',
+      width: '30px',
+      height: '30px',
+      minWidth: '30px',
+      minHeight: '30px',
+      padding: '0',
+      borderRadius: '7px',
+      border: '1px solid rgba(45,127,249,.28)',
       background: '#2d7ff9',
       color: '#fff',
       fontWeight: '700',
-      boxShadow: '0 2px 8px rgba(0,0,0,.18)',
+      boxShadow: 'none',
       cursor: 'pointer',
       pointerEvents: 'auto',
-      fontSize: '13px',
-      lineHeight: '1.2'
+      fontSize: '11px',
+      lineHeight: '30px',
+      textAlign: 'center'
     };
+  },
+
+  cssRailButton() {
+    // Icon-rail mode: behave like a compact right-toolbar button, not a floating tab.
+    return {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '28px',
+      height: '28px',
+      minWidth: '28px',
+      minHeight: '28px',
+      margin: '3px auto',
+      padding: '0',
+      borderRadius: '6px',
+      border: '1px solid rgba(45,127,249,.26)',
+      background: '#2d7ff9',
+      color: '#fff',
+      fontWeight: '700',
+      boxShadow: 'none',
+      cursor: 'pointer',
+      pointerEvents: 'auto',
+      fontSize: '10px',
+      lineHeight: '28px',
+      textAlign: 'center'
+    };
+  },
+
+  findIconRail(win) {
+    var doc = win.document;
+    var width = 0, height = 0;
+    try {
+      width = win.innerWidth || doc.documentElement.clientWidth || 0;
+      height = win.innerHeight || doc.documentElement.clientHeight || 0;
+    } catch (e) {}
+
+    function visibleRail(plugin, n) {
+      if (!n || !n.appendChild || n.id === plugin.ids.button || n.id === plugin.ids.panel) return false;
+      try {
+        var r = n.getBoundingClientRect ? n.getBoundingClientRect() : null;
+        if (!r || r.width < 18 || r.width > 72 || r.height < 160) return false;
+        if (width && r.left < width * 0.55) return false;
+        var cs = win.getComputedStyle ? win.getComputedStyle(n) : null;
+        if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function scoreRail(n) {
+      var score = 0;
+      try {
+        score += n.querySelectorAll('button, toolbarbutton, [role="button"], svg, img').length * 2;
+        var txt = (n.textContent || '').trim();
+        if (txt.length < 20) score += 4;
+      } catch (e) {}
+      try {
+        var r = n.getBoundingClientRect();
+        score += Math.max(0, r.left / 100);
+      } catch (e) {}
+      return score;
+    }
+
+    // First try point scanning around the exact right icon column. This is more
+    // reliable than class names because Zotero and plugins use unstable DOM names.
+    var pointCandidates = [];
+    try {
+      var xs = [width - 18, width - 28, width - 38, width - 48].filter(function (x) { return x > 0; });
+      var ys = [];
+      for (var y = 72; y < Math.max(120, height - 80); y += 32) ys.push(y);
+      for (var xi = 0; xi < xs.length; xi++) {
+        for (var yi = 0; yi < ys.length; yi++) {
+          var stack = doc.elementsFromPoint ? doc.elementsFromPoint(xs[xi], ys[yi]) : [];
+          for (var si = 0; si < stack.length; si++) {
+            var el = stack[si];
+            var cur = el;
+            for (var depth = 0; cur && depth < 7; depth++, cur = cur.parentElement) {
+              if (visibleRail(this, cur)) pointCandidates.push(cur);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    var best = null, bestScore = -1;
+    for (var p = 0; p < pointCandidates.length; p++) {
+      var sc = scoreRail(pointCandidates[p]);
+      if (sc > bestScore) {
+        best = pointCandidates[p];
+        bestScore = sc;
+      }
+    }
+    if (best) return best;
+
+    // Selector/geometry fallback.
+    var nodes = [];
+    try { nodes = Array.prototype.slice.call(doc.querySelectorAll('div, vbox, hbox, toolbar, section, aside')); } catch (e) { nodes = []; }
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!visibleRail(this, n)) continue;
+      var count = 0;
+      try { count = n.querySelectorAll('button, toolbarbutton, [role="button"], svg, img').length; } catch (e) { count = 0; }
+      if (count < 2) continue;
+      var s = scoreRail(n);
+      if (s > bestScore) {
+        bestScore = s;
+        best = n;
+      }
+    }
+    return best;
   },
 
   injectButton(win) {
     var doc = win.document;
+    var rail = this.findIconRail(win);
     var button = this.html(doc, 'button', {
       id: this.ids.button,
       type: 'button',
       title: 'Word Learning',
-      styleObj: this.cssButton()
+      styleObj: rail ? this.cssRailButton() : this.cssButton()
     }, 'WL');
     var plugin = this;
     var handler = function (event) {
-      // Do not bind mousedown and click at the same time. A normal
-      // mouse click fires both events; using both makes the panel open
-      // on mousedown and immediately close on click.  Use click only.
       plugin.debug('WL button click');
       try {
         event.preventDefault();
@@ -271,6 +1271,13 @@ var WordLearningPlugin = {
       return false;
     };
     button.addEventListener('click', handler, true);
+    if (rail) {
+      try {
+        button.dataset.railButton = '1';
+        rail.appendChild(button);
+        return;
+      } catch (e) {}
+    }
     doc.documentElement.appendChild(button);
   },
 
@@ -291,21 +1298,47 @@ var WordLearningPlugin = {
     toolsPopup.appendChild(item);
   },
 
-  panelStyle() {
+  panelStyle(embedded) {
+    if (embedded) {
+      // Stackable right-sidebar section. This is intentionally NOT height:100%,
+      // so it can coexist with Translate, LLM-for-Zotero, and Zotero's own sections.
+      return {
+        position: 'relative',
+        width: '100%',
+        minWidth: '0',
+        maxWidth: 'none',
+        maxHeight: '640px',
+        zIndex: 'auto',
+        background: '#ffffff',
+        color: '#111827',
+        border: '0',
+        borderTop: '1px solid #e5e7eb',
+        borderRadius: '0',
+        boxShadow: 'none',
+        overflow: 'hidden',
+        display: 'none',
+        margin: '0',
+        fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+        fontSize: '13px',
+        lineHeight: '1.45'
+      };
+    }
+    // Fallback: docked-sidebar visual mode when Zotero sidebar host is not found.
     return {
       position: 'fixed',
-      right: '52px',
-      top: '76px',
-      bottom: '28px',
-      width: '580px',
-      maxWidth: '56vw',
-      minWidth: '460px',
+      right: '44px',
+      top: '70px',
+      bottom: '0px',
+      width: '420px',
+      maxWidth: '34vw',
+      minWidth: '360px',
       zIndex: '2147483645',
       background: '#ffffff',
       color: '#111827',
-      border: '1px solid rgba(0,0,0,.22)',
-      borderRadius: '14px',
-      boxShadow: '0 14px 42px rgba(0,0,0,.25)',
+      border: '1px solid rgba(0,0,0,.14)',
+      borderRight: '0',
+      borderRadius: '10px 0 0 10px',
+      boxShadow: '-2px 0 10px rgba(0,0,0,.12)',
       overflow: 'hidden',
       display: 'none',
       fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
@@ -314,15 +1347,152 @@ var WordLearningPlugin = {
     };
   },
 
+  sidebarHostCandidates(win) {
+    var doc = win.document;
+    return [
+      // Zotero 7 Reader/context pane candidates. These names vary across builds,
+      // so we try several conservative selectors and verify geometry below.
+      '#zotero-context-pane',
+      '#context-pane',
+      '#item-pane',
+      '#zotero-item-pane',
+      '#zotero-reader-sidebar',
+      '#reader-sidebar',
+      '.context-pane',
+      '.zotero-context-pane',
+      '.reader-sidebar',
+      '.sidebar-pane',
+      '[data-pane="context"]',
+      '[data-l10n-id="context-pane"]'
+    ].map(function (sel) {
+      try { return doc.querySelector(sel); } catch (e) { return null; }
+    }).filter(Boolean);
+  },
+
+  findSidebarHost(win) {
+    var doc = win.document;
+    var candidates = this.sidebarHostCandidates(win);
+    var width = 0;
+    try { width = win.innerWidth || doc.documentElement.clientWidth || 0; } catch (e) {}
+
+    var plugin = this;
+    function rect(n) {
+      try { return n && n.getBoundingClientRect ? n.getBoundingClientRect() : null; } catch (e) { return null; }
+    }
+    function visible(n) {
+      try {
+        var cs = win.getComputedStyle ? win.getComputedStyle(n) : null;
+        return !(cs && (cs.display === 'none' || cs.visibility === 'hidden'));
+      } catch (e) { return true; }
+    }
+    function usable(n) {
+      if (!n || !n.appendChild || n.id === plugin.ids.panel || n.id === plugin.ids.button) return false;
+      var r = rect(n);
+      if (!r || r.width < 260 || r.width > 620 || r.height < 260) return false;
+      if (width && r.left < width * 0.48) return false;
+      if (!visible(n)) return false;
+      return true;
+    }
+    function normalizeContainer(n) {
+      // Do not mount inside another plugin's content area. Climb to the
+      // scroll/content container that owns multiple right-pane sections.
+      if (!n) return null;
+      var current = n;
+      for (var depth = 0; current && current.parentElement && depth < 8; depth++) {
+        var r = rect(current);
+        var p = current.parentElement;
+        var pr = rect(p);
+        if (!r || !pr) break;
+        var parentUsable = p.appendChild && pr.width >= 260 && pr.width <= 660 &&
+          (!width || pr.left > width * 0.45) && pr.height >= r.height * 0.75 && visible(p);
+        if (!parentUsable) break;
+
+        var pluginish = false;
+        try {
+          var text = (current.textContent || '').slice(0, 120).toLowerCase();
+          pluginish = /llm-for-zotero|translate|翻译|word learning/.test(text);
+        } catch (e) {}
+        var widthSimilar = Math.abs(pr.width - r.width) < 80;
+        var parentHasSections = false;
+        try {
+          var childCount = Array.prototype.slice.call(p.children || []).filter(function (ch) {
+            var cr = rect(ch);
+            return cr && cr.width > 220 && cr.height > 22 && visible(ch);
+          }).length;
+          parentHasSections = childCount >= 2;
+        } catch (e) {}
+
+        if (widthSimilar && (pluginish || parentHasSections || depth < 2)) {
+          current = p;
+          continue;
+        }
+        break;
+      }
+      return current;
+    }
+
+    // Prefer known context pane candidates, but normalize upward so Word Learning
+    // is appended as a sibling section rather than inside Translate/LLM-for-Zotero.
+    for (var i = 0; i < candidates.length; i++) {
+      if (usable(candidates[i])) {
+        return normalizeContainer(candidates[i]);
+      }
+    }
+
+    // Geometry fallback: choose the rightmost visible content pane; normalize upward.
+    var all = [];
+    try { all = Array.prototype.slice.call(doc.querySelectorAll('div, section, aside, vbox, hbox')); } catch (e) { all = []; }
+    var best = null;
+    var bestScore = -Infinity;
+    for (var j = 0; j < all.length; j++) {
+      var el = all[j];
+      if (!usable(el)) continue;
+      try {
+        var rr = rect(el);
+        var score = rr.left * 2 + Math.min(rr.height, 900) - Math.abs(rr.width - 360);
+        var text = (el.textContent || '').slice(0, 160).toLowerCase();
+        // Penalize selecting a plugin's inner body.
+        if (/llm-for-zotero|translate|翻译/.test(text)) score -= 100;
+        if (score > bestScore) {
+          bestScore = score;
+          best = el;
+        }
+      } catch (e) {}
+    }
+    return normalizeContainer(best);
+  },
+
   ensurePanel(win) {
     var doc = win.document;
     var panel = doc.getElementById(this.ids.panel);
     if (panel) {
       return panel;
     }
-    panel = this.html(doc, 'div', { id: this.ids.panel, styleObj: this.panelStyle() });
+
+    var host = this.findSidebarHost(win);
+    var embedded = !!host;
+    panel = this.html(doc, 'div', { id: this.ids.panel, styleObj: this.panelStyle(embedded) });
+    panel.dataset.embedded = embedded ? '1' : '0';
     this.buildPanel(win, panel);
-    doc.documentElement.appendChild(panel);
+
+    if (embedded) {
+      try {
+        panel.style.height = 'auto';
+        panel.style.maxHeight = Math.max(420, Math.min(720, Math.floor((host.getBoundingClientRect().height || 620) - 24))) + 'px';
+      } catch (e) {
+        panel.style.maxHeight = '640px';
+      }
+      // Append as a sibling-like section in the right pane, not inside another
+      // plugin's body. findSidebarHost() normalizes to the shared section container.
+      host.appendChild(panel);
+    } else {
+      doc.documentElement.appendChild(panel);
+    }
+
+    this.installThemeStyles(win, panel);
+    this.normalizeDarkElements(win, panel);
+    this.normalizeDarkSpecificWidgets(win, panel);
+    this.setupThemeWatcher(win, panel);
     this.loadSettings(win);
     this.refreshTerms(win);
     return panel;
@@ -331,21 +1501,74 @@ var WordLearningPlugin = {
   buildPanel(win, panel) {
     var doc = win.document;
     var plugin = this;
-    var root = this.html(doc, 'div', { styleObj: { height: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc' } });
+    var embedded = panel.dataset.embedded === '1';
+    var root = this.html(doc, 'div', {
+      dataset: { role: 'wl-root' },
+      styleObj: {
+        height: embedded ? 'auto' : '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'Canvas'
+      }
+    });
     panel.appendChild(root);
 
-    var header = this.html(doc, 'div', { styleObj: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#fff', borderBottom: '1px solid #e5e7eb' } });
-    header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: '14px' } }, 'Word Learning'));
+    var header = this.html(doc, 'div', {
+      dataset: { role: 'wl-section-header' },
+      styleObj: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: embedded ? '6px 8px' : '10px 12px',
+        background: '#fff',
+        borderBottom: '1px solid #e5e7eb',
+        minHeight: embedded ? '30px' : '42px',
+        cursor: embedded ? 'pointer' : 'default'
+      }
+    });
+
+    var arrow = this.html(doc, 'button', {
+      type: 'button',
+      title: embedded ? (this.isChineseUI() ? '展开/收起' : 'Expand/Collapse') : '',
+      dataset: { role: 'wl-collapse-toggle' },
+      styleObj: {
+        width: '22px',
+        height: '22px',
+        minWidth: '22px',
+        padding: '0',
+        border: '0',
+        background: 'transparent',
+        color: '#6b7280',
+        cursor: 'pointer',
+        fontSize: '14px',
+        lineHeight: '22px',
+        display: embedded ? 'inline-flex' : 'none',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }
+    }, '⌄');
+    header.appendChild(arrow);
+    header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.3.3') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.1') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
-    close.textContent = '×';
-    close.addEventListener('click', function (event) { try { event.preventDefault(); event.stopPropagation(); } catch (e) {} plugin.hidePanel(win); });
+    close.textContent = embedded ? '−' : '×';
+    close.title = embedded ? (this.isChineseUI() ? '收起此栏' : 'Collapse section') : (this.isChineseUI() ? '关闭' : 'Close');
+    close.style.width = embedded ? '24px' : close.style.width;
+    close.style.minWidth = embedded ? '24px' : close.style.minWidth;
+    close.style.height = embedded ? '24px' : close.style.height;
+    close.style.minHeight = embedded ? '24px' : close.style.minHeight;
+    close.style.padding = embedded ? '0' : close.style.padding;
+    close.addEventListener('click', function (event) {
+      try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
+      if (panel.dataset.embedded === '1') plugin.setPanelCollapsed(panel, true);
+      else plugin.hidePanel(win);
+    });
     header.appendChild(close);
     root.appendChild(header);
 
-    var tabs = this.html(doc, 'div', { styleObj: { display: 'flex', gap: '6px', padding: '8px 10px', background: '#fff', borderBottom: '1px solid #e5e7eb' } });
+    var tabs = this.html(doc, 'div', { dataset: { role: 'wl-tabs' }, styleObj: { display: 'flex', gap: '6px', padding: '8px 10px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' } });
     var names = [['addword', this.t('addWord')], ['wordbook', this.t('cardView')], ['allwords', this.t('allWords')], ['review', this.t('review')], ['settings', this.t('settings')]];
     for (var i = 0; i < names.length; i++) {
       var tab = this.smallButton(doc, names[i][1]);
@@ -357,15 +1580,55 @@ var WordLearningPlugin = {
       });
       tabs.appendChild(tab);
     }
-    root.appendChild(tabs);
 
-    var body = this.html(doc, 'div', { styleObj: { flex: '1', overflow: 'auto', padding: '12px' } });
+    var tabActions = this.html(doc, 'div', { dataset: { role: 'wl-tab-actions' } });
+    var themeToggle = this.smallButton(doc, '');
+    themeToggle.dataset.role = 'theme-toggle';
+    themeToggle.title = this.isChineseUI() ? '切换日间/夜间模式' : 'Toggle light/dark mode';
+    themeToggle.addEventListener('click', function (event) {
+      try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
+      var current = plugin.getThemeMode(win);
+      var next = current === 'dark' ? 'light' : 'dark';
+      plugin.setThemeMode(win, next);
+      plugin.fillThemeToggleButton(doc, themeToggle, next);
+    });
+    tabActions.appendChild(themeToggle);
+    tabs.appendChild(tabActions);
+    this.fillThemeToggleButton(doc, themeToggle, this.getThemeMode(win));
+
+    root.appendChild(tabs);
+    this.renderThemeToggle(win);
+
+    var body = this.html(doc, 'div', { dataset: { role: 'wl-body' }, styleObj: { flex: embedded ? '0 1 auto' : '1', overflow: 'auto', padding: embedded ? '10px' : '12px', maxHeight: embedded ? '560px' : '' } });
     root.appendChild(body);
     body.appendChild(this.wordbookView(win));
     body.appendChild(this.addWordView(win));
     body.appendChild(this.allWordsView(win));
     body.appendChild(this.reviewView(win));
     body.appendChild(this.settingsView(win));
+
+    var toggle = function (event) {
+      if (!embedded) return;
+      try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
+      plugin.setPanelCollapsed(panel, panel.dataset.collapsed !== '1');
+    };
+    arrow.addEventListener('click', toggle);
+    header.addEventListener('click', function (event) {
+      if (event.target && event.target.closest && event.target.closest('button')) return;
+      toggle(event);
+    });
+    if (embedded) this.setPanelCollapsed(panel, false);
+  },
+
+  setPanelCollapsed(panel, collapsed) {
+    if (!panel) return;
+    panel.dataset.collapsed = collapsed ? '1' : '0';
+    var tabs = panel.querySelector('[data-role="wl-tabs"]');
+    var body = panel.querySelector('[data-role="wl-body"]');
+    var arrow = panel.querySelector('[data-role="wl-collapse-toggle"]');
+    if (tabs) tabs.style.display = collapsed ? 'none' : 'flex';
+    if (body) body.style.display = collapsed ? 'none' : 'block';
+    if (arrow) arrow.textContent = collapsed ? '›' : '⌄';
   },
 
   controlBaseStyle() {
@@ -405,6 +1668,8 @@ var WordLearningPlugin = {
 
   primaryButton(doc, text) {
     var b = this.smallButton(doc, text);
+    b.dataset.primary = '1';
+    b.classList.add('wl-primary');
     b.style.background = '#2d7ff9';
     b.style.borderColor = '#2d7ff9';
     b.style.color = '#fff';
@@ -492,6 +1757,8 @@ var WordLearningPlugin = {
     tab.style.borderStyle = 'solid';
     tab.style.appearance = 'none';
     tab.style.WebkitAppearance = 'none';
+    tab.dataset.wlActive = active ? '1' : '0';
+    tab.classList.toggle('wl-active', !!active);
     if (active) {
       tab.style.background = '#2d7ff9';
       tab.style.borderColor = '#2d7ff9';
@@ -505,6 +1772,8 @@ var WordLearningPlugin = {
 
 
   activatePresetStyle(btn, active) {
+    btn.dataset.wlActive = active ? '1' : '0';
+    btn.classList.toggle('wl-active', !!active);
     btn.style.borderRadius = '8px';
     btn.style.height = '34px';
     btn.style.minHeight = '34px';
@@ -996,9 +2265,9 @@ var WordLearningPlugin = {
         marginTop: '12px',
         maxHeight: '520px',
         overflow: 'auto',
-        border: '1px solid #e5e7eb',
+        border: '1px solid ' + ('var(--wl-border)'),
         borderRadius: '12px',
-        background: '#fff'
+        background: 'var(--wl-surface)'
       }
     });
     box.appendChild(list);
@@ -1044,22 +2313,22 @@ var WordLearningPlugin = {
       var item = this.html(win.document, 'div', {
         styleObj: {
           padding: '10px 12px',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid color-mix(in srgb, CanvasText 18%, transparent)',
           cursor: 'pointer',
-          background: t.id === this.selectedIdByWindow.get(win) ? '#eff6ff' : '#fff'
+          background: t.id === this.selectedIdByWindow.get(win) ? 'color-mix(in srgb, #2d7ff9 22%, Canvas)' : 'color-mix(in srgb, Canvas 96%, CanvasText 4%)'
         }
       });
       item._termId = t.id;
       item.appendChild(this.html(win.document, 'div', {
         styleObj: {
           fontWeight: '800',
-          color: '#111827',
+          color: 'CanvasText',
           marginBottom: '4px'
         }
       }, t.text || '(Untitled)'));
       item.appendChild(this.html(win.document, 'div', {
         styleObj: {
-          color: '#9ca3af',
+          color: 'color-mix(in srgb, CanvasText 70%, transparent)',
           fontSize: '12px',
           lineHeight: '18px',
           whiteSpace: 'pre-wrap'
@@ -1229,10 +2498,14 @@ var WordLearningPlugin = {
       }
     });
     var again = this.dangerButton(doc, this.isChineseUI() ? '不认识' : 'Unknown');
+    again.dataset.reviewGrade = 'again';
+    again.dataset.role = 'review-grade-again';
     again.style.width = '100%';
     again.style.height = '40px';
     again.addEventListener('click', function () { plugin.markReview(win, 'again'); });
     var hard = this.smallButton(doc, this.isChineseUI() ? '模糊' : 'Blurred');
+    hard.dataset.reviewGrade = 'hard';
+    hard.dataset.role = 'review-grade-hard';
     hard.style.width = '100%';
     hard.style.height = '40px';
     hard.style.color = '#c2410c';
@@ -1240,6 +2513,8 @@ var WordLearningPlugin = {
     hard.style.background = '#fff7ed';
     hard.addEventListener('click', function () { plugin.markReview(win, 'hard'); });
     var known = this.smallButton(doc, this.isChineseUI() ? '认识' : 'Known');
+    known.dataset.reviewGrade = 'known';
+    known.dataset.role = 'review-grade-known';
     known.style.width = '100%';
     known.style.height = '40px';
     known.style.color = '#166534';
@@ -1428,13 +2703,57 @@ var WordLearningPlugin = {
   },
 
   togglePanel(win) {
+    if (this.nativePanelRegistered) {
+      var nativePanel = this.panel(win);
+      if (nativePanel) {
+        nativePanel.style.display = nativePanel.style.display === 'none' ? 'block' : 'none';
+      }
+      return;
+    }
     var panel = this.ensurePanel(win);
-    panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
-    this.debug('togglePanel -> ' + panel.style.display);
+    if (panel.dataset.embedded === '1') {
+      if (panel.style.display === 'none' || !panel.style.display) {
+        panel.style.display = 'block';
+        this.setPanelCollapsed(panel, false);
+      } else {
+        this.setPanelCollapsed(panel, panel.dataset.collapsed !== '1');
+      }
+    } else {
+      panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+    }
+    this.debug('togglePanel -> ' + panel.style.display + ', collapsed=' + panel.dataset.collapsed);
   },
 
   showPanel(win) {
+    if (this.nativePanelRegistered) {
+      try {
+        // Zotero manages visibility for native ItemPaneManager sections. We do
+        // not create or append a manual panel here, because that would interfere
+        // with other plugins.
+        var panel = this.panel(win);
+        if (panel) {
+          panel.style.display = 'block';
+          this.refreshTerms(win);
+          return;
+        }
+      } catch (e) {}
+      return;
+    }
     var panel = this.ensurePanel(win);
+    if (panel && panel.dataset.embedded !== '1') {
+      var host = this.findSidebarHost(win);
+      if (host) {
+        try {
+          if (panel.parentNode) panel.parentNode.removeChild(panel);
+          panel.style.cssText = '';
+          this.applyStyle(panel, this.panelStyle(true));
+          panel.dataset.embedded = '1';
+          panel.style.height = 'auto';
+          panel.style.maxHeight = Math.max(420, Math.min(720, Math.floor((host.getBoundingClientRect().height || 620) - 24))) + 'px';
+          host.appendChild(panel);
+        } catch (e) {}
+      }
+    }
     panel.style.display = 'block';
     this.refreshTerms(win);
   },
@@ -1450,6 +2769,7 @@ var WordLearningPlugin = {
     var p = this.panel(win); if (!p) return;
     var n = p.querySelector('[data-role="' + role + '"]'); if (!n) return;
     n.textContent = String(text || '');
+    n.dataset.wlStatusState = state || '';
     n.style.background = state === 'ok' ? '#ecfdf5' : state === 'err' ? '#fef2f2' : '#f3f4f6';
     n.style.color = state === 'ok' ? '#065f46' : state === 'err' ? '#991b1b' : '#374151';
   },
@@ -1712,7 +3032,7 @@ var WordLearningPlugin = {
     var doc = await this.readDocument();
     p._wlTerms = doc.terms || [];
     if (!this.selectedIdByWindow.get(win) && p._wlTerms.length) this.selectedIdByWindow.set(win, p._wlTerms[0].id);
-    this.renderCard(win); this.renderList(win); this.renderAllWordsList(win);
+    this.renderCard(win); this.renderList(win); this.renderAllWordsList(win); this.refreshTheme(win);
   },
 
   renderCard(win) {
@@ -2613,15 +3933,18 @@ var WordLearningPlugin = {
       if (!value) {
         allFilled = false;
         allCorrect = false;
+        node.dataset.wlSpellState = '';
         node.style.borderBottomColor = '#9ca3af';
         node.style.color = '#111827';
         node.style.background = '#fff';
       } else if (value === target) {
+        node.dataset.wlSpellState = 'correct';
         node.style.borderBottomColor = '#22c55e';
         node.style.color = '#166534';
         node.style.background = '#f0fdf4';
       } else {
         allCorrect = false;
+        node.dataset.wlSpellState = 'wrong';
         node.style.borderBottomColor = '#ef4444';
         node.style.color = '#991b1b';
         node.style.background = '#fef2f2';
@@ -2777,12 +4100,16 @@ var WordLearningPlugin = {
       b.disabled = true;
       b.style.cursor = 'default';
       if (isCorrect) {
+        b.dataset.wlReviewState = 'correct';
         b.style.borderColor = '#22c55e';
         b.style.background = '#f0fdf4';
         b.style.color = '#166534';
+      } else {
+        b.dataset.wlReviewState = 'selected';
       }
     }
     if (!correct) {
+      btn.dataset.wlReviewState = 'wrong';
       btn.style.borderColor = '#ef4444';
       btn.style.background = '#fef2f2';
       btn.style.color = '#991b1b';
@@ -2820,6 +4147,7 @@ var WordLearningPlugin = {
       var correctText = correctTextNode ? correctTextNode.textContent : (term ? (term.chineseMeaning || '') : '');
       ans.textContent = (this.isChineseUI() ? '正确选项：' : 'Correct option: ') + (correctText || '');
       if (correctBtn) {
+        correctBtn.dataset.wlReviewState = 'correct';
         correctBtn.style.borderColor = '#22c55e';
         correctBtn.style.background = '#f0fdf4';
         correctBtn.style.color = '#166534';
@@ -2972,7 +4300,16 @@ var WordLearningPlugin = {
   extractSelectionText(event) { var params = event?.params || {}; var text = params.annotation?.text || params.annotation?.comment || params.text || params.selectedText || params.selectionText || ''; text = String(text || '').trim(); if (!text) { try { text = String(event?.doc?.getSelection?.().toString() || '').trim(); } catch (e) {} } return text; },
   buildSelectionPayload(event) { var params = event?.params || {}; var text = this.extractSelectionText(event); return { text: text, source: { selectedText: text, createdAt: new Date().toISOString() }, createdAt: new Date().toISOString() }; },
   loadLastSelectionIntoDraft(win) { if (!this.lastSelectionPayload?.text) { this.status(win, 'wordbook-status', 'No captured reader selection yet.', 'err'); return; } this.setDraft(win, { text: this.lastSelectionPayload.text, example: this.lastSelectionPayload.text }); this.status(win, 'wordbook-status', 'Selection loaded. Review, LLM Complete, then Save.', 'ok'); },
-  openPanelWithSelection(win, payload) { this.lastSelectionPayload = payload; this.showPanel(win); this.switchTab(this.panel(win), 'addword'); this.setAddDraft(win, { text: payload.text, example: payload.text }); this.status(win, 'addword-status', 'Draft opened from PDF selection.', 'ok'); },
+  openPanelWithSelection(win, payload) {
+    this.lastSelectionPayload = payload;
+    this.showPanel(win);
+    var p = win ? this.panel(win) : null;
+    if (p) {
+      this.switchTab(p, 'addword');
+      this.setAddDraft(win, { text: payload.text, example: payload.text });
+      this.status(win, 'addword-status', 'Draft opened from PDF selection.', 'ok');
+    }
+  },
 
   registerReaderSelectionPopup() { if (this.readerSelectionHandler || !Zotero?.Reader?.registerEventListener) return; this.readerSelectionHandler = (event) => this.renderReaderSelectionPopup(event); try { Zotero.Reader.registerEventListener('renderTextSelectionPopup', this.readerSelectionHandler, this.id); } catch (e) { this.debug('registerReaderSelectionPopup failed: ' + e); } },
   unregisterReaderSelectionPopup() { if (!this.readerSelectionHandler || !Zotero?.Reader?.unregisterEventListener) return; try { Zotero.Reader.unregisterEventListener('renderTextSelectionPopup', this.readerSelectionHandler); } catch (e) {} this.readerSelectionHandler = null; },

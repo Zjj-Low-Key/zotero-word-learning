@@ -73,23 +73,46 @@ English documentation: [README.md](README.md)
 ## 功能特性
 
 - 从 Zotero PDF 阅读流程中添加单词和短语。
-- 在 Zotero 主窗口显示浮动 `WL` 按钮。
+- 通过 Zotero 右侧原生 Item Pane 插件区域嵌入 Word Learning 面板。
+- 在 Zotero 主窗口右侧保留 `WL` 快速入口。
 - 通过 `Tools` 菜单打开 Word Learning 面板。
 - 提供五个主要页面：添加单词、单词卡片、全部词汇、复习、设置。
 - 使用 LLM 补全音标、中文释义、论文语境解释和相关短语。
 - 支持 OpenAI、DeepSeek、Gemini、Anthropic、MiniMax、GLM、Grok、Qwen、Kimi 和自定义 OpenAI-compatible API。
 - 对支持推理或思考参数的模型提供思考强度设置。
+- 支持插件内部日间 / 夜间主题切换。
+- 顶部标签栏右侧提供独立主题切换按钮，不参与普通页面 tab 状态。
 - 支持本地语音选择和语音预览。
 - 使用本地 JSON 文件保存词库。
 - 支持自定义数据库路径。
 - 修改到空的新数据库路径时，尝试自动复制旧数据库。
 - 支持卡片式浏览和编辑。
-- 提供可搜索、可排序的全部词汇列表。
+- 提供可搜索、可排序，并适配日间 / 夜间主题的全部词汇列表。
 - 使用系统本地语音合成播放英文发音。
 - 提供释义选择、例句语境选择、拼写三类复习题。
+- 保留不认识、模糊、认识、正确选项、错误选项、选中项和状态提示的语义颜色。
+- 拼写题支持逐字符绿色正确反馈和红色错误反馈。
 - 根据错题情况提高后续复习抽样权重。
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
+
+## 0.9.1 更新内容
+
+0.9.1 重点改进 Zotero 原生侧栏集成和深色模式稳定性。
+
+- 继续稳定 `Zotero.ItemPaneManager.registerSection(...)` 原生 Item Pane 嵌入方式。
+- Word Learning 面板可以像 Zotero 右侧原生插件区域一样展开和收起。
+- 保留右侧 `WL` 插件入口。
+- 修复面板标题栏、展开 / 折叠区域和内容区域的布局问题。
+- 不再依赖不稳定的 Zotero / macOS 自动主题判断，改为插件内部手动切换。
+- 新增 `extensions.wordlearning.themeMode` 主题状态，支持 `light` 和 `dark`。
+- 顶部标签栏最右侧新增独立主题切换按钮。
+- 使用太阳 / 月亮图片作为图标，并以 data URI 加载，避免 Item Pane 中 `chrome://` 路径解析问题。
+- 增加 `<img>`、`background-image` 和文字符号三层图标兜底。
+- 修复夜间模式下卡片、全部词汇列表、输入框、textarea、select、相关短语 chip、复习提示和状态框的颜色问题。
+- 恢复不认识、模糊、认识三类复习按钮的红 / 橙 / 绿语义颜色。
+- 恢复选择题正确选项、错误选项和选中项的颜色反馈。
+- 拼写模式新增逐字符正确 / 错误状态反馈。
 
 ## 仓库结构
 
@@ -99,11 +122,16 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.5.6.md
+├── RELEASE_NOTES_v0.9.1.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
 ├── prefs.js
+├── word-learning.ftl
+├── chrome/
+│   └── icons/
+│       ├── theme-sun.png
+│       └── theme-moon.png
 ├── docs/
 │   ├── usage.md
 │   ├── llm-settings.md
@@ -115,14 +143,14 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.5.6.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.9.1.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.5.6.xpi`。
+6. 选择 `zotero-word-learning-0.9.1.xpi`。
 7. 安装后重启 Zotero。
-8. 重启后，点击右侧浮动 `WL` 按钮，或通过 `Tools` -> `Word Learning` 打开插件。
+8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
 ## 首次配置
 
@@ -130,7 +158,8 @@ English documentation: [README.md](README.md)
 
 安装并重启 Zotero 后，有两个入口：
 
-- 点击 Zotero 主窗口右侧的浮动 `WL` 按钮。
+- 点击 Zotero 主窗口右侧的 `WL` 入口。
+- 打开 Zotero 右侧 Item Pane 中的 Word Learning 区域。
 - 打开 `Tools` -> `Word Learning`。
 
 面板包含五个页签：
@@ -140,6 +169,8 @@ English documentation: [README.md](README.md)
 - `全部词汇`
 - `复习`
 - `设置`
+
+主题切换按钮位于标签栏最右侧，只切换 Word Learning 面板自身的日间 / 夜间模式，不改变 Zotero 全局主题。
 
 ### 2. 设置界面语言
 
@@ -325,6 +356,9 @@ LLM 补全提示词面向学术论文阅读，会要求生成适合中文读者�
 - `manifest.json`
 - `bootstrap.js`
 - `prefs.js`
+- `word-learning.ftl`
+- `chrome/icons/theme-sun.png`
+- `chrome/icons/theme-moon.png`
 
 在仓库根目录执行：
 
@@ -364,12 +398,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.5.6`
+当前版本：`0.9.1`
 
 Release 资产：
 
-- `zotero-word-learning-0.5.6.xpi`
-- `Word Learning 0.5.6 source.zip`
+- `zotero-word-learning-0.9.1.xpi`
+- `Word Learning 0.9.1 source.zip`
 
 ## 许可证
 

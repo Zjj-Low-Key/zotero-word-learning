@@ -73,23 +73,44 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 ## Main Features
 
 - Add words and phrases from Zotero's PDF reading workflow.
-- Floating `WL` button in the Zotero main window.
+- Native Zotero Item Pane integration through the right-side plugin area.
+- Floating/right-side `WL` entry in the Zotero main window.
 - `Tools` menu entry for opening the Word Learning panel.
 - Five main views: Add Word, Word Card, All Words, Review, and Settings.
 - LLM completion for pronunciation, Chinese meaning, paper-context explanation, and related phrases.
 - Multi-provider LLM settings for OpenAI, DeepSeek, Gemini, Anthropic, MiniMax, GLM, Grok, Qwen, Kimi, and custom OpenAI-compatible APIs.
 - Thinking intensity controls for models that support reasoning or thinking parameters.
+- Plugin-controlled light and dark themes.
+- Dedicated theme toggle button on the top tab bar, separate from normal navigation tabs.
 - Local speech voice selection and voice preview.
 - Local JSON vocabulary database.
 - Custom database path support.
 - Automatic database copy when changing to an empty custom path.
 - Card-based browsing and editing.
-- Full vocabulary list with search and A-Z/Z-A sorting.
+- Full vocabulary list with search, A-Z/Z-A sorting, and light/dark theme styling.
 - Local system pronunciation through speech synthesis.
 - Review sessions with meaning choice, example-based meaning choice, and spelling questions.
+- Semantic review feedback colors for Unknown, Blurred, Known, correct choices, wrong choices, selected choices, and status messages.
+- Per-character spelling feedback with green correct states and red wrong states.
 - Mistake-weighted review sampling.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
+
+## What's New in 0.9.1
+
+Version 0.9.1 focuses on Zotero-native embedding and theme stability.
+
+- Stabilized the native Zotero right-side Item Pane integration with `Zotero.ItemPaneManager.registerSection(...)`.
+- Kept the `WL` toolbar entry while making the panel behave like a native right-side Zotero plugin section.
+- Fixed layout issues around the panel title bar, expand/collapse area, and content area.
+- Replaced unstable automatic Zotero/macOS theme detection with an internal `light` / `dark` theme preference.
+- Added `extensions.wordlearning.themeMode` for plugin-controlled theme state.
+- Added a dedicated theme toggle button on the far right of the top tab bar.
+- Bundled sun and moon icons, loaded as data URIs so they render inside Zotero's Item Pane.
+- Added icon fallbacks through `<img>`, `background-image`, and text symbols.
+- Fixed dark-mode colors for cards, lists, inputs, textareas, selects, chips, review hints, and status boxes.
+- Restored semantic review colors for Unknown, Blurred, Known, correct options, wrong options, selected options, and status messages.
+- Added per-character spelling states for correct and wrong input feedback.
 
 ## Repository Structure
 
@@ -99,11 +120,16 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.5.6.md
+├── RELEASE_NOTES_v0.9.1.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
 ├── prefs.js
+├── word-learning.ftl
+├── chrome/
+│   └── icons/
+│       ├── theme-sun.png
+│       └── theme-moon.png
 ├── docs/
 │   ├── usage.md
 │   ├── llm-settings.md
@@ -115,14 +141,14 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 
 ## Installation
 
-1. Download `zotero-word-learning-0.5.6.xpi` from the release page.
+1. Download `zotero-word-learning-0.9.1.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.5.6.xpi`.
+6. Select `zotero-word-learning-0.9.1.xpi`.
 7. Restart Zotero.
-8. After restart, open Word Learning from the floating `WL` button or from `Tools` -> `Word Learning`.
+8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
 ## First-Time Setup
 
@@ -130,7 +156,8 @@ Configure language, LLM provider, API URL, model, thinking intensity, API key, a
 
 After installation and restart, use either entry point:
 
-- Click the floating `WL` button on the right side of the Zotero main window.
+- Click the right-side `WL` entry in the Zotero main window.
+- Open the Word Learning section in Zotero's right-side Item Pane.
 - Open `Tools` -> `Word Learning`.
 
 The panel contains five tabs:
@@ -140,6 +167,8 @@ The panel contains five tabs:
 - `All Words`
 - `Review`
 - `Settings`
+
+The theme toggle is placed on the far right of the tab bar. It switches only the Word Learning panel between light and dark mode and does not change Zotero's global theme.
 
 ### 2. Set the UI Language
 
@@ -325,6 +354,9 @@ The installable plugin package is an `.xpi` file. It is a ZIP archive containing
 - `manifest.json`
 - `bootstrap.js`
 - `prefs.js`
+- `word-learning.ftl`
+- `chrome/icons/theme-sun.png`
+- `chrome/icons/theme-moon.png`
 
 Build from the repository root:
 
@@ -364,12 +396,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.5.6`
+Current version: `0.9.1`
 
 Release assets:
 
-- `zotero-word-learning-0.5.6.xpi`
-- `Word Learning 0.5.6 source.zip`
+- `zotero-word-learning-0.9.1.xpi`
+- `Word Learning 0.9.1 source.zip`
 
 ## License
 
