@@ -113,7 +113,6 @@ English documentation: [README.md](README.md)
 ├── LICENSE
 ├── CHANGELOG.md
 ├── RELEASE_NOTES_v0.9.7.md
-├── RELEASE_NOTES_v0.9.4.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js

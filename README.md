@@ -113,7 +113,6 @@ Version 0.9.7 is an architecture upgrade for Zotero ItemPane lifecycle stability
 ├── LICENSE
 ├── CHANGELOG.md
 ├── RELEASE_NOTES_v0.9.7.md
-├── RELEASE_NOTES_v0.9.4.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
