@@ -50,7 +50,7 @@ English documentation: [README.md](README.md)
 
 配置语言、LLM 服务商、API URL、模型、思考强度、API Key 和数据库路径。
 
-<img src="docs/images/settings-light.png" alt="设置日间主题页面" width="620">
+<img src="docs/images/word-card-dark.png" alt="单词卡片夜间主题页面" width="620">
 
 ### 夜间主题
 
@@ -58,7 +58,7 @@ English documentation: [README.md](README.md)
 
 <img src="docs/images/add-word-dark.png" alt="添加单词夜间主题页面" width="620">
 
-<img src="docs/images/word-card-dark.png" alt="单词卡片夜间主题页面" width="620">
+<img src="docs/images/settings-light.png" alt="设置日间主题页面" width="620">
 
 <img src="docs/images/all-words-dark.png" alt="全部词汇夜间主题页面" width="620">
 
