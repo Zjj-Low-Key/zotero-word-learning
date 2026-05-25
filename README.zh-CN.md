@@ -92,19 +92,18 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.9.3 更新内容
+## 0.9.4 更新内容
 
-0.9.3 修复 Zotero 原生 ItemPane 生命周期中的两个状态同步问题。
+0.9.4 重点处理 Zotero ItemPane 注销、原生 header 处理、CSS 作用域和 Reader 选中文本弹窗按钮的稳定性风险。
 
-- 修复关闭当前 PDF 并打开另一个 PDF 后，设置和词库看起来丢失的问题。
-- 新增按窗口追踪当前活动面板，确保设置和词库刷新写入当前正在显示的 Word Learning 面板。
-- 在原生 `onRender` 和 `onAsyncRender` 阶段重新绑定当前面板。
-- 避免切换 PDF 或 Reader 标签页后继续使用旧的 ItemPane DOM 引用。
-- 通过 `prefGet(...)` 和 `prefSet(...)` 统一 Zotero 偏好设置读写，提高设置持久化稳定性。
-- 修复新增单词后立即点击修改单词时，编辑表单仍显示上一个词的问题。
-- 新增当前选中词条读取和编辑草稿同步逻辑。
-- 保存新词后立即更新当前选中状态。
-- 保存后刷新单词卡片、词条列表和全部词汇列表。
+- 恢复原生 Zotero ItemPane section 的安全 shutdown 注销。
+- 安全注销会尝试多个可能的 section id，捕获 unknown option 等异常，并在注销后清理 `activePanelByWindow`。
+- 移除激进的原生 header DOM 修改，将 `decorateNativeSectionHeader(...)` 改为 no-op，避免误伤其他插件标题栏。
+- 清理主题 CSS 历史残留，包括重复 dark theme block 和孤立的 `}`。
+- 保持插件样式限定在 `#wl-panel-v026` 范围内，降低 CSS 解析异常和跨插件样式污染风险。
+- 将 Reader 选中文本弹窗中的 `Add to Wordbook` 改为独立 `data-role="wl-reader-selection-box"` 容器。
+- 避免重复插入 Reader 弹窗按钮，并停止修改 Zotero 或其他插件的 DOM。
+- 将弹窗按钮改为蓝色圆角主操作样式，点击后显示 `Draft opened` / `已打开添加面板` 状态提示。
 
 ## 仓库结构
 
@@ -114,7 +113,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.3.md
+├── RELEASE_NOTES_v0.9.4.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -135,12 +134,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.9.3.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.9.4.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.9.3.xpi`。
+6. 选择 `zotero-word-learning-0.9.4.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -390,12 +389,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.9.3`
+当前版本：`0.9.4`
 
 Release 资产：
 
-- `zotero-word-learning-0.9.3.xpi`
-- `Word Learning 0.9.3 source no README.zip`
+- `zotero-word-learning-0.9.4.xpi`
+- `Word Learning 0.9.4 source no README.zip`
 
 ## 许可证
 

@@ -43,9 +43,13 @@ var WordLearningPlugin = {
 
   shutdown(data, reason) {
     this.unregisterReaderSelectionPopup();
-    // Do not manually unregister ItemPaneManager section during repeated dev installs;
-    // Zotero may already have removed it, which logs "Can't remove unknown option".
-    this.nativePanelRegistered = false;
+
+    // Always try to unregister the native ItemPane section.  Leaving old
+    // ItemPaneManager callbacks registered after dev reloads can interfere with
+    // other ItemPane plugins.  The unregister helper is intentionally tolerant:
+    // it swallows Zotero's "unknown option" errors and still resets our state.
+    this.unregisterNativeItemPaneSection();
+
     this.removeFromAllWindows();
     this.debug('shutdown');
   },
@@ -192,32 +196,6 @@ var WordLearningPlugin = {
   --wl-green-text: #166534;
   color-scheme: light;
 }
-#wl-panel-v026[data-wl-theme="dark"] {
-  --wl-bg: #2b2b2b;
-  --wl-surface: #242424;
-  --wl-surface-2: #303030;
-  --wl-text: #f3f4f6;
-  --wl-text-muted: #d1d5db;
-  --wl-border: #555555;
-  --wl-input-bg: #1f1f1f;
-  --wl-button-bg: #3a3a3a;
-  --wl-button-hover: #464646;
-  --wl-chip-bg: #4a4a4a;
-  --wl-chip-text: #f3f4f6;
-  --wl-blue: #3b82f6;
-  --wl-red-bg: #3a1f22;
-  --wl-red-border: #ef4444;
-  --wl-red-text: #fecaca;
-  --wl-orange-bg: #3b2a18;
-  --wl-orange-border: #f59e0b;
-  --wl-orange-text: #fed7aa;
-  --wl-green-bg: #153520;
-  --wl-green-border: #22c55e;
-  --wl-green-text: #bbf7d0;
-  color-scheme: dark;
-}
-}
-
 #wl-panel-v026[data-wl-theme="dark"] {
   --wl-bg: #2b2b2b;
   --wl-surface: #242424;
@@ -713,101 +691,12 @@ var WordLearningPlugin = {
   },
 
   decorateNativeSectionHeader(body) {
-    try {
-      if (!body || !body.ownerDocument) return;
-      var doc = body.ownerDocument;
-      var candidates = [];
-      function add(n) { if (n && candidates.indexOf(n) < 0) candidates.push(n); }
-
-      var cur = body;
-      for (var d = 0; cur && d < 8; d++, cur = cur.parentElement) {
-        add(cur.previousElementSibling);
-        add(cur.firstElementChild);
-        if (cur.parentElement) {
-          add(cur.parentElement.previousElementSibling);
-          add(cur.parentElement.firstElementChild);
-        }
-      }
-
-      var header = null;
-      for (var i = 0; i < candidates.length; i++) {
-        var n = candidates[i];
-        if (!n || !n.getBoundingClientRect) continue;
-        var r = n.getBoundingClientRect();
-        if (!r || r.height < 16 || r.height > 54 || r.width < 120) continue;
-        var text = (n.textContent || '').trim();
-        if (text.indexOf('Word Learning') >= 0 || text === '' || text === 'WL' || text.length < 40) {
-          header = n;
-          break;
-        }
-      }
-      if (!header) return;
-
-      // Remove decorations from previous builds. Do not touch Zotero's native icon/arrow.
-      var oldLabels = Array.prototype.slice.call(header.querySelectorAll('[data-role="wl-native-title-label"], [data-role="wl-native-title-spacer"], [data-role="wl-native-header-label"], [data-role="wl-native-header-version"], [data-role="wl-native-header-icon"]'));
-      for (var od = 0; od < oldLabels.length; od++) {
-        if (oldLabels[od].parentNode) oldLabels[od].parentNode.removeChild(oldLabels[od]);
-      }
-
-      // If Zotero itself has started rendering the label correctly, do nothing.
-      // Note: after removing our old labels above, this only catches native text.
-      if ((header.textContent || '').indexOf('Word Learning') >= 0) return;
-
-      var headerRect = header.getBoundingClientRect ? header.getBoundingClientRect() : null;
-      if (!headerRect) return;
-
-      // Find the left native WL icon by geometry. The previous flex/grid insertion
-      // was unreliable because Zotero's header layout can center inserted children.
-      var iconNode = null;
-      var iconRect = null;
-      var nodes = [];
-      try { nodes = Array.prototype.slice.call(header.querySelectorAll('*')); } catch (e) { nodes = []; }
-      for (var ic = 0; ic < nodes.length; ic++) {
-        var n2 = nodes[ic];
-        var rr = n2.getBoundingClientRect ? n2.getBoundingClientRect() : null;
-        if (!rr || rr.width <= 0 || rr.height <= 0) continue;
-        var txt = (n2.textContent || '').trim();
-        var isGraphic = /^(img|svg|image)$/i.test(n2.localName || n2.tagName || '');
-        var isWL = txt === 'WL';
-        var small = rr.width <= 32 && rr.height <= 32;
-        var nearLeft = rr.left >= headerRect.left - 2 && rr.left < headerRect.left + Math.max(48, headerRect.width * 0.22);
-        if ((isGraphic || isWL) && small && nearLeft) {
-          iconNode = n2;
-          iconRect = rr;
-          break;
-        }
-      }
-
-      // Fallback position: just after the usual left icon slot.
-      var left = 26;
-      if (iconRect) {
-        left = Math.max(22, Math.round(iconRect.right - headerRect.left + 6));
-      }
-
-      var label = doc.createElementNS('http://www.w3.org/1999/xhtml', 'span');
-      label.setAttribute('data-role', 'wl-native-title-label');
-      label.textContent = 'Word Learning';
-      label.style.position = 'absolute';
-      label.style.left = left + 'px';
-      label.style.top = '50%';
-      label.style.transform = 'translateY(-50%)';
-      label.style.color = '#6b7280';
-      label.style.fontSize = '12px';
-      label.style.fontWeight = '600';
-      label.style.whiteSpace = 'nowrap';
-      label.style.lineHeight = '1';
-      label.style.pointerEvents = 'none';
-      label.style.zIndex = '1';
-
-      // Make the native header a positioning context, but do not modify its
-      // flex/grid layout. This keeps the native expand/collapse button untouched.
-      if (!header.style.position || header.style.position === 'static') {
-        header.style.position = 'relative';
-      }
-      header.appendChild(label);
-    } catch (e) {
-      this.debug('decorateNativeSectionHeader failed: ' + e);
-    }
+    // Zotero's native ItemPaneManager already owns the section header.
+    // Previous builds used DOM geometry guesses to inject an extra label near the
+    // native WL icon.  That can accidentally touch neighboring plugin headers
+    // (Translate, LLM-for-Zotero, etc.) when Zotero changes its layout, so this
+    // function is intentionally kept as a no-op for plugin stability.
+    return;
   },
 
   registerNativeItemPaneSection() {
@@ -932,16 +821,39 @@ var WordLearningPlugin = {
   },
 
   unregisterNativeItemPaneSection() {
+    var ids = [];
     try {
-      if (this.nativePanelRegistered && Zotero && Zotero.ItemPaneManager) {
-        if (typeof Zotero.ItemPaneManager.unregisterSection === 'function') {
-          Zotero.ItemPaneManager.unregisterSection(this.nativePaneID);
-        } else if (typeof Zotero.ItemPaneManager.unregister === 'function') {
-          Zotero.ItemPaneManager.unregister(this.nativePaneID);
+      if (this.nativePaneID) ids.push(this.nativePaneID);
+      ids.push('word-learning-item-pane');
+      ids.push('word-learning');
+    } catch (e) {}
+
+    try {
+      if (Zotero && Zotero.ItemPaneManager) {
+        for (var i = 0; i < ids.length; i++) {
+          var id = ids[i];
+          if (!id) continue;
+          try {
+            if (typeof Zotero.ItemPaneManager.unregisterSection === 'function') {
+              Zotero.ItemPaneManager.unregisterSection(id);
+            } else if (typeof Zotero.ItemPaneManager.unregister === 'function') {
+              Zotero.ItemPaneManager.unregister(id);
+            } else if (typeof Zotero.ItemPaneManager.removeSection === 'function') {
+              Zotero.ItemPaneManager.removeSection(id);
+            }
+          } catch (e) {
+            // Zotero may already have removed the section during extension reload.
+            // Do not let this break shutdown or other plugins.
+            this.debug('safe native ItemPane unregister ignored for ' + id + ': ' + e);
+          }
         }
       }
-    } catch (e) {}
+    } catch (e2) {
+      this.debug('safe native ItemPane unregister outer error: ' + e2);
+    }
+
     this.nativePanelRegistered = false;
+    try { this.activePanelByWindow = new WeakMap(); } catch (e3) {}
   },
 
   getMainWindow() {
@@ -1558,7 +1470,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.3') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.4') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -4416,9 +4328,104 @@ var WordLearningPlugin = {
     }
   },
 
-  registerReaderSelectionPopup() { if (this.readerSelectionHandler || !Zotero?.Reader?.registerEventListener) return; this.readerSelectionHandler = (event) => this.renderReaderSelectionPopup(event); try { Zotero.Reader.registerEventListener('renderTextSelectionPopup', this.readerSelectionHandler, this.id); } catch (e) { this.debug('registerReaderSelectionPopup failed: ' + e); } },
-  unregisterReaderSelectionPopup() { if (!this.readerSelectionHandler || !Zotero?.Reader?.unregisterEventListener) return; try { Zotero.Reader.unregisterEventListener('renderTextSelectionPopup', this.readerSelectionHandler); } catch (e) {} this.readerSelectionHandler = null; },
-  renderReaderSelectionPopup(event) { try { var doc = event?.doc; var append = event?.append; if (!doc || typeof append !== 'function') return; var text = this.extractSelectionText(event); if (!text) return; var box = doc.createElement('div'); box.style.display = 'flex'; box.style.gap = '6px'; box.style.marginTop = '6px'; var btn = doc.createElement('button'); btn.textContent = 'Add to Wordbook'; var status = doc.createElement('span'); status.style.fontSize = '12px'; var plugin = this; btn.addEventListener('click', function () { var payload = plugin.buildSelectionPayload(event); plugin.openPanelWithSelection(plugin.getMainWindow(), payload); status.textContent = 'Draft opened'; }); box.appendChild(btn); box.appendChild(status); append(box); } catch (e) { this.debug('renderReaderSelectionPopup failed: ' + e); } },
+  registerReaderSelectionPopup() {
+    if (this.readerSelectionHandler || !Zotero?.Reader?.registerEventListener) return;
+    this.readerSelectionHandler = (event) => this.renderReaderSelectionPopup(event);
+    try {
+      Zotero.Reader.registerEventListener('renderTextSelectionPopup', this.readerSelectionHandler, this.id);
+    } catch (e) {
+      this.debug('registerReaderSelectionPopup failed: ' + e);
+    }
+  },
+
+  unregisterReaderSelectionPopup() {
+    if (!this.readerSelectionHandler || !Zotero?.Reader?.unregisterEventListener) return;
+    try {
+      Zotero.Reader.unregisterEventListener('renderTextSelectionPopup', this.readerSelectionHandler, this.id);
+    } catch (e1) {
+      try { Zotero.Reader.unregisterEventListener('renderTextSelectionPopup', this.readerSelectionHandler); } catch (e2) {}
+    }
+    this.readerSelectionHandler = null;
+  },
+
+  renderReaderSelectionPopup(event) {
+    try {
+      var doc = event?.doc;
+      var append = event?.append;
+      if (!doc || typeof append !== 'function') return;
+
+      var text = this.extractSelectionText(event);
+      if (!text) return;
+
+      // Avoid duplicate controls and avoid modifying controls created by Zotero
+      // or other plugins.  We only append one isolated Word Learning box.
+      if (doc.querySelector('[data-role="wl-reader-selection-box"]')) return;
+
+      var box = doc.createElement('div');
+      box.setAttribute('data-role', 'wl-reader-selection-box');
+      box.style.display = 'flex';
+      box.style.flexDirection = 'column';
+      box.style.gap = '6px';
+      box.style.marginTop = '8px';
+      box.style.paddingTop = '8px';
+      box.style.borderTop = '1px solid rgba(127, 127, 127, 0.18)';
+
+      var btn = doc.createElement('button');
+      btn.setAttribute('data-role', 'wl-add-to-wordbook-button');
+      btn.type = 'button';
+      btn.textContent = this.isChineseUI() ? '加入词库' : 'Add to Wordbook';
+      btn.style.width = '100%';
+      btn.style.minHeight = '30px';
+      btn.style.padding = '6px 12px';
+      btn.style.borderRadius = '8px';
+      btn.style.border = '1px solid rgba(45, 140, 255, 0.45)';
+      btn.style.background = 'linear-gradient(180deg, #3b91ff 0%, #2d7ff9 100%)';
+      btn.style.color = '#ffffff';
+      btn.style.fontWeight = '700';
+      btn.style.fontSize = '12px';
+      btn.style.letterSpacing = '0.01em';
+      btn.style.cursor = 'pointer';
+      btn.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.12)';
+      btn.style.webkitAppearance = 'none';
+      btn.style.appearance = 'none';
+
+      var status = doc.createElement('div');
+      status.setAttribute('data-role', 'wl-reader-selection-status');
+      status.style.fontSize = '11px';
+      status.style.lineHeight = '1.35';
+      status.style.minHeight = '14px';
+      status.style.color = '#6b7280';
+      status.style.textAlign = 'center';
+
+      var plugin = this;
+      btn.addEventListener('mouseenter', function () {
+        btn.style.background = 'linear-gradient(180deg, #4b9aff 0%, #2d7ff9 100%)';
+      });
+      btn.addEventListener('mouseleave', function () {
+        btn.style.background = 'linear-gradient(180deg, #3b91ff 0%, #2d7ff9 100%)';
+      });
+      btn.addEventListener('click', function (ev) {
+        try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
+        try {
+          var payload = plugin.buildSelectionPayload(event);
+          plugin.openPanelWithSelection(plugin.getMainWindow(), payload);
+          status.textContent = plugin.isChineseUI() ? '已打开添加面板' : 'Draft opened';
+          status.style.color = '#166534';
+        } catch (e) {
+          status.textContent = plugin.isChineseUI() ? '添加失败' : 'Failed to open draft';
+          status.style.color = '#991b1b';
+          plugin.debug('reader selection button failed: ' + e);
+        }
+      });
+
+      box.appendChild(btn);
+      box.appendChild(status);
+      append(box);
+    } catch (e) {
+      this.debug('renderReaderSelectionPopup failed: ' + e);
+    }
+  },
+
   exposeHost(win) { if (!win) return; var plugin = this; win.WordLearningPluginHost = { open: function () { plugin.showPanel(win); }, getLastSelection: function () { return plugin.lastSelectionPayload; }, getCurrentContext: function () { return {}; } }; }
 };
 

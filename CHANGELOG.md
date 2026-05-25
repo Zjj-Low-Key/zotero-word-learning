@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.4
+
+- Restored safe shutdown unregistration for the native Zotero ItemPane section.
+- Safely attempts multiple possible section IDs, catches unknown-option errors, and clears `activePanelByWindow` after unregistering.
+- Changed native header decoration to a no-op to avoid mutating adjacent Zotero or third-party plugin section headers.
+- Cleaned historical theme CSS leftovers, including duplicate dark-theme blocks and an isolated brace.
+- Kept plugin styles scoped under `#wl-panel-v026` to reduce CSS parsing and style-leak risks.
+- Reworked the Reader selected-text popup `Add to Wordbook` action into an independent `data-role="wl-reader-selection-box"` container.
+- Avoids duplicate Reader popup insertion and no longer modifies other plugin DOM.
+- Restyled the Reader popup action as a blue rounded primary button with localized status feedback.
+
 ## 0.9.3
 
 - Fixed settings and vocabulary disappearing after closing a PDF and opening another PDF in Zotero.
