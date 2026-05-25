@@ -1079,23 +1079,7 @@ var WordLearningPlugin = {
           plugin.renderThemeToggle(win);
           plugin.setupThemeWatcher(win, panel);
           plugin.decorateNativeSectionHeader(body);
-          // Zotero already provides native header/collapse/sidenav. Remove our
-          // internal header so the panel behaves like Translate/LLM-for-Zotero.
-          var internalHeader = panel.querySelector('[data-role="wl-section-header"]');
-          if (internalHeader && internalHeader.parentNode) {
-            internalHeader.parentNode.removeChild(internalHeader);
-          }
-          var root = panel.querySelector('[data-role="wl-root"]');
-          if (root) {
-            root.style.height = '100%';
-            root.style.background = 'Canvas';
-          }
-          var bodyNode = panel.querySelector('[data-role="wl-body"]');
-          if (bodyNode) {
-            bodyNode.style.flex = '1';
-            bodyNode.style.maxHeight = '';
-            bodyNode.style.overflow = 'auto';
-          }
+          plugin.normalizeNativeItemPaneLayout(win, panel);
           plugin.loadSettings(win);
           plugin.normalizeDarkElements(win, panel);
           plugin.normalizeDarkSpecificWidgets(win, panel);
@@ -1755,6 +1739,7 @@ var WordLearningPlugin = {
     var doc = win.document;
     var plugin = this;
     var embedded = panel.dataset.embedded === '1';
+    var nativeItemPane = panel.dataset.native === '1';
     var root = this.html(doc, 'div', {
       dataset: { role: 'wl-root' },
       styleObj: {
@@ -1804,7 +1789,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.7') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.8') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -1853,7 +1838,16 @@ var WordLearningPlugin = {
     root.appendChild(tabs);
     this.renderThemeToggle(win);
 
-    var body = this.html(doc, 'div', { dataset: { role: 'wl-body' }, styleObj: { flex: embedded ? '0 1 auto' : '1', overflow: 'auto', padding: embedded ? '10px' : '12px', maxHeight: embedded ? '560px' : '' } });
+    var body = this.html(doc, 'div', {
+      dataset: { role: 'wl-body' },
+      styleObj: {
+        flex: nativeItemPane ? '0 0 auto' : (embedded ? '0 1 auto' : '1'),
+        overflow: nativeItemPane ? 'visible' : 'auto',
+        padding: embedded ? '10px' : '12px',
+        maxHeight: nativeItemPane ? '' : (embedded ? '560px' : ''),
+        minHeight: '0'
+      }
+    });
     root.appendChild(body);
     body.appendChild(this.wordbookView(win));
     body.appendChild(this.addWordView(win));
@@ -3127,16 +3121,61 @@ var WordLearningPlugin = {
   },
 
 
+
+  normalizeNativeItemPaneLayout(win, panel) {
+    try {
+      if (!panel || panel.dataset.native !== '1') return;
+
+      // In native Zotero ItemPane mode, Zotero already provides the section
+      // header, collapse arrow, side icon and outer scroll container.  Internal
+      // fallback headers/max-height constraints must not be reintroduced after
+      // rebuilding the panel, otherwise a duplicate toolbar appears and the
+      // content becomes trapped in a nested scroll box.
+      var internalHeader = panel.querySelector('[data-role="wl-section-header"]');
+      if (internalHeader && internalHeader.parentNode) {
+        internalHeader.parentNode.removeChild(internalHeader);
+      }
+
+      var root = panel.querySelector('[data-role="wl-root"]');
+      if (root) {
+        root.style.height = 'auto';
+        root.style.minHeight = '0';
+        root.style.background = 'Canvas';
+      }
+
+      var bodyNode = panel.querySelector('[data-role="wl-body"]');
+      if (bodyNode) {
+        bodyNode.style.flex = '0 0 auto';
+        bodyNode.style.maxHeight = '';
+        bodyNode.style.overflow = 'visible';
+        bodyNode.style.minHeight = '0';
+      }
+
+      panel.style.height = 'auto';
+      panel.style.minHeight = '0';
+      panel.style.overflow = 'visible';
+    } catch (e) {
+      this.debug('normalizeNativeItemPaneLayout failed: ' + e);
+    }
+  },
+
   rebuildPanelUI(win, activeTab) {
     var p = this.panel(win);
     if (!p) return;
+    var body = p.__wordLearningBody || p;
+    var generation = this.beginRender(win, body, 'rebuildPanelUI');
     while (p.firstChild) {
       p.removeChild(p.firstChild);
     }
+    this.setActivePanel(win, body, p);
     this.buildPanel(win, p);
+    this.setupPanelHandlers(win, body, p);
+    p.__wlRenderGeneration = generation;
+    this.normalizeNativeItemPaneLayout(win, p);
     this.loadSettings(win);
-    this.refreshTerms(win);
+    this.refreshTerms(win, generation);
     this.switchTab(p, activeTab || 'wordbook');
+    this.renderThemeToggle(win);
   },
 
   switchTab(panel, name) {

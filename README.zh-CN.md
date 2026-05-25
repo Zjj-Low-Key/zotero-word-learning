@@ -92,17 +92,15 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.9.7 更新内容
+## 0.9.8 更新内容
 
-0.9.7 是一次结构升级，重点处理 Zotero ItemPane 生命周期、异步渲染安全和长时间闲置后的点击可靠性。
+0.9.8 修复了 0.9.7 架构升级后在 Zotero 原生 ItemPane 中保存设置时触发的布局回归。
 
-- 增加 render generation 追踪，避免旧异步回调写入新的 PDF 面板或表单。
-- 增加生命周期管理，在 Zotero 移除面板 body 时通过 `MutationObserver` 自动清理。
-- 将面板点击统一到 delegated controller，并在同步构建 UI 后立即安装。
-- 顶部 tab、主题切换、添加单词、单词卡片、全部词汇、复习和设置控件都走统一控制器。
-- 为词库刷新、LLM 补全、连接测试和 LLM 复习混淆项生成增加 generation guard。
-- 保留旧 idle rescue 函数名，但降级为兼容 no-op。
-- fallback 面板也接入同一套 generation、active panel、事件控制器和 lifecycle cleanup。
+- 新增 `normalizeNativeItemPaneLayout(win, panel)`，专门处理 Zotero 原生 ItemPane 布局归一化。
+- 修复点击“保存设置”后插件内部 fallback header 被重新加回来的问题。
+- 修复原生 ItemPane 模式下 `wl-body` 恢复成固定高度和内部滚动的问题。
+- 保持 Zotero 原生 ItemPane 作为唯一滚动容器，避免嵌套滚动。
+- 统一首次渲染和后续重建后的布局清理逻辑，解决“第一次正常，保存后变形”的差异。
 
 ## 仓库结构
 
@@ -112,7 +110,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.7.md
+├── RELEASE_NOTES_v0.9.8.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -133,12 +131,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.9.7.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.9.8.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.9.7.xpi`。
+6. 选择 `zotero-word-learning-0.9.8.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -388,12 +386,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.9.7`
+当前版本：`0.9.8`
 
 Release 资产：
 
-- `zotero-word-learning-0.9.7.xpi`
-- `Word Learning 0.9.7 source no README.zip`
+- `zotero-word-learning-0.9.8.xpi`
+- `Word Learning 0.9.8 source no README.zip`
 
 ## 许可证
 

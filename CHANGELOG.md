@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.8
+
+- Fixed a native Zotero ItemPane layout regression introduced by the 0.9.7 architecture upgrade.
+- Added `normalizeNativeItemPaneLayout(win, panel)` to remove the plugin's fallback header in native ItemPane mode.
+- Prevented `rebuildPanelUI()` from restoring the internal `Word Learning ... loaded` header after saving settings.
+- Removed the plugin-owned `maxHeight: 560px` and internal scrolling from the native ItemPane body.
+- Ensured first render and later rebuilds use the same native ItemPane layout normalization path.
+
 ## 0.9.7
 
 - Added render generation tracking with `renderGenerationByWindow`, `beginRender(...)`, `currentGeneration(...)`, and `isRenderCurrent(...)`.
