@@ -9,6 +9,9 @@ var WordLearningPlugin = {
   readerSelectionHandler: null,
   lastSelectionPayload: null,
   activePanelByWindow: new WeakMap(),
+  panelLifecycleByBody: new WeakMap(),
+  renderGenerationByWindow: new WeakMap(),
+  panelLastInteractionByWindow: new WeakMap(),
   selectedIdByWindow: new WeakMap(),
   reviewIndexByWindow: new WeakMap(),
   reviewSessionByWindow: new WeakMap(),
@@ -699,6 +702,323 @@ var WordLearningPlugin = {
     return;
   },
 
+
+  beginRender(win, body, reason) {
+    try {
+      if (!win) return 0;
+      var next = (this.renderGenerationByWindow.get(win) || 0) + 1;
+      this.renderGenerationByWindow.set(win, next);
+      if (body) {
+        body.__wlRenderGeneration = next;
+        body.__wlRenderReason = reason || '';
+      }
+      return next;
+    } catch (e) {
+      return 0;
+    }
+  },
+
+  currentGeneration(win) {
+    try { return this.renderGenerationByWindow.get(win) || 0; } catch (e) { return 0; }
+  },
+
+  isRenderCurrent(win, generation) {
+    try {
+      if (!generation) return true;
+      return (this.renderGenerationByWindow.get(win) || 0) === generation;
+    } catch (e) {
+      return true;
+    }
+  },
+
+  setActivePanel(win, body, panel) {
+    try {
+      if (win && panel) this.activePanelByWindow.set(win, panel);
+      if (body && panel) {
+        body.__wordLearningPanel = panel;
+        panel.__wordLearningBody = body;
+      }
+    } catch (e) {}
+  },
+
+  disposePanelBody(body) {
+    try {
+      var lifecycle = this.panelLifecycleByBody.get(body);
+      if (lifecycle && typeof lifecycle.dispose === 'function') {
+        lifecycle.dispose();
+      }
+      this.panelLifecycleByBody.delete(body);
+    } catch (e) {}
+  },
+
+  createPanelLifecycle(body, panel, win) {
+    var plugin = this;
+    this.disposePanelBody(body);
+    var disposables = [];
+    var disposed = false;
+    var lifecycle = {
+      add: function (fn) {
+        if (disposed) {
+          try { fn(); } catch (e) {}
+          return function () {};
+        }
+        disposables.push(fn);
+        return function () {
+          var idx = disposables.indexOf(fn);
+          if (idx >= 0) disposables.splice(idx, 1);
+          try { fn(); } catch (e) {}
+        };
+      },
+      dispose: function () {
+        if (disposed) return;
+        disposed = true;
+        var pending = disposables.splice(0).reverse();
+        for (var i = 0; i < pending.length; i++) {
+          try { pending[i](); } catch (e) {}
+        }
+        try {
+          if (plugin.activePanelByWindow.get(win) === panel) {
+            plugin.activePanelByWindow.delete(win);
+          }
+        } catch (e) {}
+      }
+    };
+    try { this.panelLifecycleByBody.set(body, lifecycle); } catch (e) {}
+
+    try {
+      var MutationObserverCtor = win.MutationObserver || MutationObserver;
+      var observer = new MutationObserverCtor(function () {
+        try {
+          if (!body.isConnected || !panel.isConnected) {
+            observer.disconnect();
+            lifecycle.dispose();
+          }
+        } catch (e) {}
+      });
+      observer.observe(body.ownerDocument, { childList: true, subtree: true });
+      lifecycle.add(function () { try { observer.disconnect(); } catch (e) {} });
+    } catch (e) {}
+
+    return lifecycle;
+  },
+
+  setupPanelHandlers(win, body, panel) {
+    try {
+      if (!win || !body || !panel) return;
+      var lifecycle = this.createPanelLifecycle(body, panel, win);
+      var plugin = this;
+
+      var clickHandler = function (event) {
+        try {
+          // One delegated, lifecycle-managed click controller for all dynamic
+          // controls. This mirrors LLM-for-Zotero's "build UI synchronously,
+          // then setupHandlers synchronously" pattern, and avoids stale
+          // per-button closures after Zotero rebuilds the ItemPane.
+          if (plugin.handlePanelClick(win, panel, event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            try { plugin.panelLastInteractionByWindow.set(win, Date.now()); } catch (e) {}
+          }
+        } catch (e) {
+          plugin.debug('delegated panel click failed: ' + e);
+        }
+      };
+      panel.addEventListener('click', clickHandler, true);
+      lifecycle.add(function () {
+        try { panel.removeEventListener('click', clickHandler, true); } catch (e) {}
+      });
+
+      var inputHandler = function () {
+        try { plugin.panelLastInteractionByWindow.set(win, Date.now()); } catch (e) {}
+      };
+      panel.addEventListener('input', inputHandler, true);
+      panel.addEventListener('change', inputHandler, true);
+      lifecycle.add(function () {
+        try { panel.removeEventListener('input', inputHandler, true); } catch (e) {}
+        try { panel.removeEventListener('change', inputHandler, true); } catch (e) {}
+      });
+
+      this.panelLastInteractionByWindow.set(win, Date.now());
+    } catch (e) {
+      this.debug('setupPanelHandlers failed: ' + e);
+    }
+  },
+
+  handlePanelClick(win, panel, event) {
+    var target = event.target;
+    if (!target || !target.closest) return false;
+    var button = target.closest('button');
+    var termItem = target.closest('[data-term-id]');
+
+    if (button && !panel.contains(button)) return false;
+    if (termItem && !panel.contains(termItem)) return false;
+
+    var view = this.currentViewName(panel);
+
+    if (button) {
+      if (button.dataset && button.dataset.tab) {
+        this.switchTab(panel, button.dataset.tab);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'theme-toggle') {
+        var current = this.getThemeMode(win);
+        var next = current === 'dark' ? 'light' : 'dark';
+        this.setThemeMode(win, next);
+        this.fillThemeToggleButton(win.document, button, next);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.wlSubtab) {
+        this.switchWordbookMode(win, button.dataset.wlSubtab);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewCountPreset) {
+        var input = panel.querySelector('[data-role="review-count"]');
+        if (input) input.value = button.dataset.reviewCountPreset;
+        var presets = panel.querySelectorAll('[data-review-count-preset]');
+        for (var pi = 0; pi < presets.length; pi++) {
+          this.activatePresetStyle(presets[pi], presets[pi] === button);
+        }
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewChoice !== undefined) {
+        this.answerMeaningChoice(win, button);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewGrade) {
+        this.markReview(win, button.dataset.reviewGrade);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'review-spelling-next') {
+        this.markReview(win, 'known');
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'allwords-sort') {
+        var currentSort = this.allWordsSortByWindow.get(win) || 'az';
+        this.allWordsSortByWindow.set(win, currentSort === 'az' ? 'za' : 'az');
+        this.renderAllWordsList(win);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'wl-collapse-toggle') {
+        this.setPanelCollapsed(panel, panel.dataset.collapsed !== '1');
+        return true;
+      }
+
+      var label = this.buttonText(button);
+
+      if (label === '‹' || label === '←') {
+        this.moveSelection(win, -1);
+        return true;
+      }
+      if (label === '›' || label === '→') {
+        this.moveSelection(win, 1);
+        return true;
+      }
+
+      if (label.indexOf('开始复习') >= 0 || label.indexOf('start review') >= 0) {
+        this.startReview(win);
+        return true;
+      }
+      if (label.indexOf('显示答案') >= 0 || label.indexOf('show answer') >= 0) {
+        this.showReviewAnswer(win);
+        return true;
+      }
+
+      if (label.indexOf('保存设置') >= 0 || label.indexOf('save settings') >= 0) {
+        this.saveSettings(win);
+        return true;
+      }
+      if (label.indexOf('测试连接') >= 0 || label.indexOf('test connection') >= 0) {
+        this.testConnection(win, button);
+        return true;
+      }
+      if (label.indexOf('预览发音') >= 0 || label.indexOf('preview voice') >= 0) {
+        this.previewSpeechStyle(win);
+        return true;
+      }
+
+      if (view === 'addword') {
+        if (label.indexOf('新词') >= 0 || label.indexOf('new word') >= 0) {
+          this.clearAddDraft(win);
+          return true;
+        }
+        if (label.indexOf('llm') >= 0) {
+          this.llmCompleteAdd(win, button);
+          return true;
+        }
+        if (label.indexOf('保存') >= 0 || label === 'save') {
+          this.saveAddTerm(win);
+          return true;
+        }
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0 || button.querySelector('svg')) {
+          this.speakAddDraft(win);
+          return true;
+        }
+      }
+
+      if (view === 'wordbook') {
+        if (label.indexOf('llm') >= 0) {
+          this.llmComplete(win, button);
+          return true;
+        }
+        if (label.indexOf('保存') >= 0 || label === 'save') {
+          this.saveTerm(win);
+          return true;
+        }
+        if (label.indexOf('删除') >= 0 || label === 'delete') {
+          this.deleteTerm(win);
+          return true;
+        }
+        if (label.indexOf('新词') >= 0 || label.indexOf('new word') >= 0) {
+          this.clearDraft(win);
+          this.switchWordbookMode(win, 'edit');
+          return true;
+        }
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0 || button.querySelector('svg')) {
+          var page = target.closest('[data-wl-page]');
+          if (page && page.dataset.wlPage === 'edit') this.speakDraft(win);
+          else this.speakSelectedTerm(win);
+          return true;
+        }
+      }
+
+      if (view === 'review') {
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0 || button.querySelector('svg')) {
+          this.speakReviewTerm(win);
+          return true;
+        }
+      }
+    }
+
+    if (termItem && termItem.dataset && termItem.dataset.termId) {
+      var id = termItem.dataset.termId;
+      var terms = (this.panel(win)?._wlTerms || []);
+      var term = terms.find(function (x) { return x.id === id; });
+      this.selectedIdByWindow.set(win, id);
+      this.setDraft(win, term || {});
+      this.renderCard(win);
+      this.renderList(win);
+      this.renderAllWordsList(win);
+      if (view === 'allwords') {
+        this.switchTab(this.panel(win), 'wordbook');
+        this.switchWordbookMode(win, 'card');
+      } else {
+        this.switchWordbookMode(win, 'card');
+      }
+      return true;
+    }
+
+    return false;
+  },
+
   registerNativeItemPaneSection() {
     if (this.nativePanelRegistered) return true;
     try {
@@ -749,10 +1069,13 @@ var WordLearningPlugin = {
               lineHeight: '1.45'
             }
           });
+          var generation = plugin.beginRender(win, body, 'native-onRender');
           body.appendChild(panel);
-          try { plugin.activePanelByWindow.set(win, panel); } catch (e) {}
+          plugin.setActivePanel(win, body, panel);
           plugin.installThemeStyles(win, panel);
           plugin.buildPanel(win, panel);
+          plugin.setupPanelHandlers(win, body, panel);
+          panel.__wlRenderGeneration = generation;
           plugin.renderThemeToggle(win);
           plugin.setupThemeWatcher(win, panel);
           plugin.decorateNativeSectionHeader(body);
@@ -781,15 +1104,21 @@ var WordLearningPlugin = {
           try {
             var body = ctx && ctx.body;
             var win = body && body.ownerDocument ? body.ownerDocument.defaultView : plugin.getMainWindow();
-            if (win && body) {
-              var currentPanel = body.querySelector('#' + plugin.ids.panel);
-              if (currentPanel) {
-                try { plugin.activePanelByWindow.set(win, currentPanel); } catch (e) {}
-              }
+            if (!win || !body) return;
+
+            var currentPanel = body.querySelector('#' + plugin.ids.panel);
+            if (currentPanel) {
+              plugin.setActivePanel(win, body, currentPanel);
+              plugin.setupPanelHandlers(win, body, currentPanel);
             }
-            if (win) await plugin.refreshTerms(win);
+
+            var generation = body.__wlRenderGeneration || plugin.currentGeneration(win);
+            await plugin.refreshTerms(win, generation);
+            if (!plugin.isRenderCurrent(win, generation)) return;
+
             if (plugin.lastSelectionPayload && win) {
-              plugin.switchTab(plugin.panel(win), 'addword');
+              var p = plugin.panel(win);
+              if (p) plugin.switchTab(p, 'addword');
               plugin.setAddDraft(win, { text: plugin.lastSelectionPayload.text, example: plugin.lastSelectionPayload.text });
             }
           } catch (e) {
@@ -1393,7 +1722,9 @@ var WordLearningPlugin = {
     var embedded = !!host;
     panel = this.html(doc, 'div', { id: this.ids.panel, styleObj: this.panelStyle(embedded) });
     panel.dataset.embedded = embedded ? '1' : '0';
+    var generation = this.beginRender(win, panel, 'fallback-ensurePanel');
     this.buildPanel(win, panel);
+    panel.__wlRenderGeneration = generation;
 
     if (embedded) {
       try {
@@ -1409,12 +1740,14 @@ var WordLearningPlugin = {
       doc.documentElement.appendChild(panel);
     }
 
+    this.setActivePanel(win, panel, panel);
+    this.setupPanelHandlers(win, panel, panel);
     this.installThemeStyles(win, panel);
     this.normalizeDarkElements(win, panel);
     this.normalizeDarkSpecificWidgets(win, panel);
     this.setupThemeWatcher(win, panel);
     this.loadSettings(win);
-    this.refreshTerms(win);
+    this.refreshTerms(win, generation);
     return panel;
   },
 
@@ -1432,6 +1765,7 @@ var WordLearningPlugin = {
       }
     });
     panel.appendChild(root);
+    // Event handlers are installed by setupPanelHandlers() immediately after buildPanel().
 
     var header = this.html(doc, 'div', {
       dataset: { role: 'wl-section-header' },
@@ -1470,7 +1804,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.4') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.7') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -1538,6 +1872,195 @@ var WordLearningPlugin = {
       toggle(event);
     });
     if (embedded) this.setPanelCollapsed(panel, false);
+  },
+
+
+  installIdleRescueHandlers(win, panel) {
+    // Deprecated in 0.9.7. Kept for compatibility with older call sites.
+    // The plugin now uses setupPanelHandlers(), a lifecycle-managed delegated
+    // event controller installed synchronously on every ItemPane render.
+    try { if (win) this.panelLastInteractionByWindow.set(win, Date.now()); } catch (e) {}
+  },
+
+  currentViewName(panel) {
+    try {
+      var views = panel.querySelectorAll('[data-view]');
+      for (var i = 0; i < views.length; i++) {
+        if (views[i].style.display !== 'none') return views[i].dataset.view || '';
+      }
+    } catch (e) {}
+    return this.currentView || 'addword';
+  },
+
+  buttonText(button) {
+    try {
+      return String(button && button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    } catch (e) {}
+    return '';
+  },
+
+  handleRescueClick(win, panel, event) {
+    var target = event.target;
+    if (!target || !target.closest) return false;
+    var button = target.closest('button');
+    var termItem = target.closest('[data-term-id]');
+    var view = this.currentViewName(panel);
+
+    if (button) {
+      if (button.dataset && button.dataset.tab) {
+        this.switchTab(panel, button.dataset.tab);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'theme-toggle') {
+        var current = this.getThemeMode(win);
+        var next = current === 'dark' ? 'light' : 'dark';
+        this.setThemeMode(win, next);
+        this.fillThemeToggleButton(win.document, button, next);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.wlSubtab) {
+        this.switchWordbookMode(win, button.dataset.wlSubtab);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewCountPreset) {
+        var input = panel.querySelector('[data-role="review-count"]');
+        if (input) input.value = button.dataset.reviewCountPreset;
+        var presets = panel.querySelectorAll('[data-review-count-preset]');
+        for (var pi = 0; pi < presets.length; pi++) {
+          this.activatePresetStyle(presets[pi], presets[pi] === button);
+        }
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewChoice !== undefined) {
+        this.answerMeaningChoice(win, button);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.reviewGrade) {
+        this.markReview(win, button.dataset.reviewGrade);
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'review-spelling-next') {
+        this.markReview(win, 'known');
+        return true;
+      }
+
+      if (button.dataset && button.dataset.role === 'allwords-sort') {
+        var currentSort = this.allWordsSortByWindow.get(win) || 'az';
+        this.allWordsSortByWindow.set(win, currentSort === 'az' ? 'za' : 'az');
+        this.renderAllWordsList(win);
+        return true;
+      }
+
+      var label = this.buttonText(button);
+
+      if (label === '‹' || label === '←') {
+        this.moveSelection(win, -1);
+        return true;
+      }
+      if (label === '›' || label === '→') {
+        this.moveSelection(win, 1);
+        return true;
+      }
+
+      if (label.indexOf('开始复习') >= 0 || label.indexOf('start review') >= 0) {
+        this.startReview(win);
+        return true;
+      }
+      if (label.indexOf('显示答案') >= 0 || label.indexOf('show answer') >= 0) {
+        this.showReviewAnswer(win);
+        return true;
+      }
+
+      if (label.indexOf('保存设置') >= 0 || label.indexOf('save settings') >= 0) {
+        this.saveSettings(win);
+        return true;
+      }
+      if (label.indexOf('测试连接') >= 0 || label.indexOf('test connection') >= 0) {
+        this.testConnection(win, button);
+        return true;
+      }
+      if (label.indexOf('预览发音') >= 0 || label.indexOf('preview voice') >= 0) {
+        this.previewSpeechStyle(win);
+        return true;
+      }
+
+      if (view === 'addword') {
+        if (label.indexOf('新词') >= 0 || label.indexOf('new word') >= 0) {
+          this.clearAddDraft(win);
+          return true;
+        }
+        if (label.indexOf('llm') >= 0) {
+          this.llmCompleteAdd(win, button);
+          return true;
+        }
+        if (label.indexOf('保存') >= 0 || label === 'save') {
+          this.saveAddTerm(win);
+          return true;
+        }
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0) {
+          this.speakAddDraft(win);
+          return true;
+        }
+      }
+
+      if (view === 'wordbook') {
+        if (label.indexOf('llm') >= 0) {
+          this.llmComplete(win, button);
+          return true;
+        }
+        if (label.indexOf('保存') >= 0 || label === 'save') {
+          this.saveTerm(win);
+          return true;
+        }
+        if (label.indexOf('删除') >= 0 || label === 'delete') {
+          this.deleteTerm(win);
+          return true;
+        }
+        if (label.indexOf('新词') >= 0 || label.indexOf('new word') >= 0) {
+          this.clearDraft(win);
+          this.switchWordbookMode(win, 'edit');
+          return true;
+        }
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0 || button.querySelector('svg')) {
+          var page = target.closest('[data-wl-page]');
+          if (page && page.dataset.wlPage === 'edit') this.speakDraft(win);
+          else this.speakSelectedTerm(win);
+          return true;
+        }
+      }
+
+      if (view === 'review') {
+        if (label.indexOf('发音') >= 0 || label.indexOf('speak') >= 0 || label.indexOf('🔊') >= 0 || button.querySelector('svg')) {
+          this.speakReviewTerm(win);
+          return true;
+        }
+      }
+    }
+
+    if (termItem && termItem.dataset && termItem.dataset.termId) {
+      var id = termItem.dataset.termId;
+      var term = (this.panel(win)._wlTerms || []).find(function (x) { return x.id === id; });
+      this.selectedIdByWindow.set(win, id);
+      this.setDraft(win, term || {});
+      this.renderCard(win);
+      this.renderList(win);
+      this.renderAllWordsList(win);
+      if (view === 'allwords') {
+        this.switchTab(this.panel(win), 'wordbook');
+        this.switchWordbookMode(win, 'card');
+      } else {
+        this.switchWordbookMode(win, 'card');
+      }
+      return true;
+    }
+
+    return false;
   },
 
   setPanelCollapsed(panel, collapsed) {
@@ -2248,6 +2771,7 @@ var WordLearningPlugin = {
         }
       });
       item._termId = t.id;
+      item.dataset.termId = t.id;
       item.appendChild(this.html(win.document, 'div', {
         styleObj: {
           fontWeight: '800',
@@ -2616,18 +3140,24 @@ var WordLearningPlugin = {
   },
 
   switchTab(panel, name) {
+    if (!panel) return;
+    this.currentView = name;
     var tabs = panel.querySelectorAll('[data-tab]');
     for (var i = 0; i < tabs.length; i++) this.activateTabStyle(tabs[i], tabs[i].dataset.tab === name);
     var views = panel.querySelectorAll('[data-view]');
     for (var j = 0; j < views.length; j++) views[j].style.display = views[j].dataset.view === name ? '' : 'none';
     try {
       var win = panel.ownerDocument.defaultView;
-      if (name === 'addword') {
-        this.clearAddDraft(win);
-      }
+      this.activePanelByWindow.set(win, panel);
+      this.renderThemeToggle(win);
+      // Do not clear the Add Word draft when the user switches away and back.
+      // LLM completion can be expensive, so unsaved draft content should stay
+      // in the form until the user explicitly clicks "New Word", saves, or Zotero
+      // rebuilds the reader pane.
       if (name === 'allwords') {
         this.renderAllWordsList(win);
       }
+      this.panelLastInteractionByWindow.set(win, Date.now());
     } catch (e) {}
   },
 
@@ -2990,9 +3520,12 @@ var WordLearningPlugin = {
     return out;
   },
 
-  async refreshTerms(win) {
+  async refreshTerms(win, generation) {
     var p = this.panel(win); if (!p) return;
+    if (!generation) generation = p.__wlRenderGeneration || this.currentGeneration(win);
     var doc = await this.readDocument();
+    if (!this.isRenderCurrent(win, generation)) return;
+    p = this.panel(win); if (!p) return;
     p._wlTerms = doc.terms || [];
     if (!this.selectedIdByWindow.get(win) && p._wlTerms.length) this.selectedIdByWindow.set(win, p._wlTerms[0].id);
     this.renderCard(win); this.renderList(win); this.renderAllWordsList(win); this.refreshTheme(win);
@@ -3056,6 +3589,7 @@ var WordLearningPlugin = {
       item.appendChild(this.html(win.document, 'div', { styleObj: { fontWeight: '700' } }, t.text || '(Untitled)'));
       item.appendChild(this.html(win.document, 'div', { styleObj: { color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, t.chineseMeaning || ''));
       item._termId = t.id;
+      item.dataset.termId = t.id;
       var plugin = this;
       item.addEventListener('click', function (event) {
         var id = event.currentTarget._termId;
@@ -3482,14 +4016,16 @@ var WordLearningPlugin = {
   contentFromResponse(json) { return json?.choices?.[0]?.message?.content || json?.content?.[0]?.text || json?.candidates?.[0]?.content?.parts?.[0]?.text || ''; },
 
   async testConnection(win, button) {
+    var generation = this.currentGeneration(win);
     this.saveSettings(win); var s = this.settingsFromPanel(win); if (!s.apiUrl || !s.modelName || !s.apiKey) { this.status(win, 'settings-status', 'Missing API URL, model name, or API key.', 'err'); return; }
-    var req = this.buildChatRequest(s, 'Reply with OK.', 32); button.disabled = true; this.status(win, 'settings-status', 'Testing...\nPOST ' + req.url, '');
-    try { var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) }); var text = await res.text(); this.status(win, 'settings-status', (res.ok ? 'Success' : 'Failure') + ': HTTP ' + res.status + '\n' + text.slice(0, 700), res.ok ? 'ok' : 'err'); }
-    catch (e) { this.status(win, 'settings-status', 'Failure: ' + (e.message || e), 'err'); } finally { button.disabled = false; }
+    var req = this.buildChatRequest(s, 'Reply with OK.', 32); if (button) button.disabled = true; this.status(win, 'settings-status', 'Testing...\nPOST ' + req.url, '');
+    try { var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) }); var text = await res.text(); if (!this.isRenderCurrent(win, generation)) return; this.status(win, 'settings-status', (res.ok ? 'Success' : 'Failure') + ': HTTP ' + res.status + '\n' + text.slice(0, 700), res.ok ? 'ok' : 'err'); }
+    catch (e) { if (this.isRenderCurrent(win, generation)) this.status(win, 'settings-status', 'Failure: ' + (e.message || e), 'err'); } finally { try { if (this.isRenderCurrent(win, generation) && button) button.disabled = false; } catch (e) {} }
   },
 
 
   async llmCompleteDraft(win, button, d, statusRole, applyData) {
+    var generation = this.currentGeneration(win);
     // Do not call saveSettings() here. saveSettings() rebuilds the panel after
     // language changes, which caused LLM Complete to jump to the Settings page.
     // Read the current settings only.
@@ -3512,6 +4048,7 @@ var WordLearningPlugin = {
     try {
       var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) });
       var text = await res.text();
+      if (!this.isRenderCurrent(win, generation)) return;
       if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 500));
       var content = this.contentFromResponse(JSON.parse(text)).replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
       var data = JSON.parse(content);
@@ -3520,7 +4057,7 @@ var WordLearningPlugin = {
     } catch (e) {
       this.status(win, statusRole || 'wordbook-status', 'LLM completion failed: ' + (e.message || e), 'err');
     } finally {
-      button.disabled = false;
+      try { if (this.isRenderCurrent(win, generation) && button) button.disabled = false; } catch (e) {}
     }
   },
 
@@ -3705,6 +4242,7 @@ var WordLearningPlugin = {
   },
 
   async ensureLLMReviewDistractors(win, term, statusRole, renderAfter) {
+    var generation = this.currentGeneration(win);
     if (!this.shouldGenerateReviewDistractors(term)) return;
     var p = this.panel(win);
     if (!p) return;
@@ -3756,6 +4294,7 @@ var WordLearningPlugin = {
       var req = this.buildChatRequest(settings, prompt, 900);
       var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) });
       var text = await res.text();
+      if (!this.isRenderCurrent(win, generation)) return;
       if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 500));
       var content = this.contentFromResponse(JSON.parse(text)).replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
       var data = JSON.parse(content);

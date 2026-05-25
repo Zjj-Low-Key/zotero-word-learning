@@ -92,18 +92,17 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.9.4
+## What's New in 0.9.7
 
-Version 0.9.4 focuses on stability around Zotero ItemPane cleanup, native header handling, scoped CSS, and the Reader selected-text popup action.
+Version 0.9.7 is an architecture upgrade for Zotero ItemPane lifecycle stability, async render safety, and long-idle click reliability.
 
-- Restored safe shutdown unregistration for the native Zotero ItemPane section.
-- Defensive unregistration now tries multiple section IDs, catches unknown-option errors, and clears `activePanelByWindow`.
-- Removed aggressive native header DOM mutation by making `decorateNativeSectionHeader(...)` a no-op.
-- Cleaned historical theme CSS leftovers, including duplicate dark-theme blocks and an isolated brace.
-- Kept plugin styles scoped under `#wl-panel-v026` to reduce CSS parsing and cross-plugin style risks.
-- Reworked the Reader selected-text `Add to Wordbook` action into an independent `data-role="wl-reader-selection-box"` container.
-- Avoided duplicate Reader popup insertion and stopped modifying other plugin DOM.
-- Restyled the Reader popup action as a blue rounded primary button with `Draft opened` / `已打开添加面板` feedback.
+- Added render generation tracking so stale async callbacks cannot overwrite a newer PDF panel or form.
+- Added lifecycle-managed panel cleanup with `MutationObserver` disposal when Zotero removes a panel body.
+- Moved panel clicks to a unified delegated controller installed immediately after synchronous UI construction.
+- Covered tabs, theme switching, add-word, wordbook, all-words, review, and settings controls through the shared controller.
+- Added generation guards to vocabulary refresh, LLM completion, connection testing, and LLM review distractor generation.
+- Kept the older idle rescue entry point as a compatibility no-op.
+- Connected fallback panel rendering to the same generation, active-panel, handler, and lifecycle cleanup path.
 
 ## Repository Structure
 
@@ -113,6 +112,7 @@ Version 0.9.4 focuses on stability around Zotero ItemPane cleanup, native header
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
+├── RELEASE_NOTES_v0.9.7.md
 ├── RELEASE_NOTES_v0.9.4.md
 ├── package.json
 ├── manifest.json
@@ -134,12 +134,12 @@ Version 0.9.4 focuses on stability around Zotero ItemPane cleanup, native header
 
 ## Installation
 
-1. Download `zotero-word-learning-0.9.4.xpi` from the release page.
+1. Download `zotero-word-learning-0.9.7.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.9.4.xpi`.
+6. Select `zotero-word-learning-0.9.7.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -389,12 +389,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.9.4`
+Current version: `0.9.7`
 
 Release assets:
 
-- `zotero-word-learning-0.9.4.xpi`
-- `Word Learning 0.9.4 source no README.zip`
+- `zotero-word-learning-0.9.7.xpi`
+- `Word Learning 0.9.7 source no README.zip`
 
 ## License
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.7
+
+- Added render generation tracking with `renderGenerationByWindow`, `beginRender(...)`, `currentGeneration(...)`, and `isRenderCurrent(...)`.
+- Added lifecycle-managed panel cleanup through `panelLifecycleByBody`, `createPanelLifecycle(...)`, and `disposePanelBody(...)`.
+- Switched the panel to synchronous UI construction followed by a unified delegated handler controller through `setupPanelHandlers(...)` and `handlePanelClick(...)`.
+- Promoted delegated event handling from idle rescue fallback to the primary click controller for tabs, theme toggle, add-word, wordbook, all-words, review, and settings controls.
+- Added generation guards to key async flows including term refresh, LLM completion, connection testing, and LLM review distractor generation.
+- Kept `installIdleRescueHandlers(...)` as a compatibility no-op.
+- Connected the fallback panel path to render generation, active panel tracking, delegated handlers, and lifecycle cleanup.
+
 ## 0.9.4
 
 - Restored safe shutdown unregistration for the native Zotero ItemPane section.
