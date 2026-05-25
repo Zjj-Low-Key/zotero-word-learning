@@ -92,23 +92,19 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.9.1 更新内容
+## 0.9.3 更新内容
 
-0.9.1 重点改进 Zotero 原生侧栏集成和深色模式稳定性。
+0.9.3 修复 Zotero 原生 ItemPane 生命周期中的两个状态同步问题。
 
-- 继续稳定 `Zotero.ItemPaneManager.registerSection(...)` 原生 Item Pane 嵌入方式。
-- Word Learning 面板可以像 Zotero 右侧原生插件区域一样展开和收起。
-- 保留右侧 `WL` 插件入口。
-- 修复面板标题栏、展开 / 折叠区域和内容区域的布局问题。
-- 不再依赖不稳定的 Zotero / macOS 自动主题判断，改为插件内部手动切换。
-- 新增 `extensions.wordlearning.themeMode` 主题状态，支持 `light` 和 `dark`。
-- 顶部标签栏最右侧新增独立主题切换按钮。
-- 使用太阳 / 月亮图片作为图标，并以 data URI 加载，避免 Item Pane 中 `chrome://` 路径解析问题。
-- 增加 `<img>`、`background-image` 和文字符号三层图标兜底。
-- 修复夜间模式下卡片、全部词汇列表、输入框、textarea、select、相关短语 chip、复习提示和状态框的颜色问题。
-- 恢复不认识、模糊、认识三类复习按钮的红 / 橙 / 绿语义颜色。
-- 恢复选择题正确选项、错误选项和选中项的颜色反馈。
-- 拼写模式新增逐字符正确 / 错误状态反馈。
+- 修复关闭当前 PDF 并打开另一个 PDF 后，设置和词库看起来丢失的问题。
+- 新增按窗口追踪当前活动面板，确保设置和词库刷新写入当前正在显示的 Word Learning 面板。
+- 在原生 `onRender` 和 `onAsyncRender` 阶段重新绑定当前面板。
+- 避免切换 PDF 或 Reader 标签页后继续使用旧的 ItemPane DOM 引用。
+- 通过 `prefGet(...)` 和 `prefSet(...)` 统一 Zotero 偏好设置读写，提高设置持久化稳定性。
+- 修复新增单词后立即点击修改单词时，编辑表单仍显示上一个词的问题。
+- 新增当前选中词条读取和编辑草稿同步逻辑。
+- 保存新词后立即更新当前选中状态。
+- 保存后刷新单词卡片、词条列表和全部词汇列表。
 
 ## 仓库结构
 
@@ -118,7 +114,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.1.md
+├── RELEASE_NOTES_v0.9.3.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -139,12 +135,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.9.1.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.9.3.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.9.1.xpi`。
+6. 选择 `zotero-word-learning-0.9.3.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -394,12 +390,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.9.1`
+当前版本：`0.9.3`
 
 Release 资产：
 
-- `zotero-word-learning-0.9.1.xpi`
-- `Word Learning 0.9.1 source.zip`
+- `zotero-word-learning-0.9.3.xpi`
+- `Word Learning 0.9.3 source no README.zip`
 
 ## 许可证
 

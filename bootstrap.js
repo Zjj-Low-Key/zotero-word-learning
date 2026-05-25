@@ -8,6 +8,7 @@ var WordLearningPlugin = {
   nativePaneID: 'word-learning-item-pane',
   readerSelectionHandler: null,
   lastSelectionPayload: null,
+  activePanelByWindow: new WeakMap(),
   selectedIdByWindow: new WeakMap(),
   reviewIndexByWindow: new WeakMap(),
   reviewSessionByWindow: new WeakMap(),
@@ -661,7 +662,7 @@ var WordLearningPlugin = {
 
   renderThemeToggle(win) {
     try {
-      var ids = this.ids();
+      var ids = this.ids;
       var p = this.panel(win);
       if (!p) return;
       var doc = p.ownerDocument;
@@ -860,6 +861,7 @@ var WordLearningPlugin = {
             }
           });
           body.appendChild(panel);
+          try { plugin.activePanelByWindow.set(win, panel); } catch (e) {}
           plugin.installThemeStyles(win, panel);
           plugin.buildPanel(win, panel);
           plugin.renderThemeToggle(win);
@@ -890,6 +892,12 @@ var WordLearningPlugin = {
           try {
             var body = ctx && ctx.body;
             var win = body && body.ownerDocument ? body.ownerDocument.defaultView : plugin.getMainWindow();
+            if (win && body) {
+              var currentPanel = body.querySelector('#' + plugin.ids.panel);
+              if (currentPanel) {
+                try { plugin.activePanelByWindow.set(win, currentPanel); } catch (e) {}
+              }
+            }
             if (win) await plugin.refreshTerms(win);
             if (plugin.lastSelectionPayload && win) {
               plugin.switchTab(plugin.panel(win), 'addword');
@@ -1550,7 +1558,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.1') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.9.3') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -2061,6 +2069,15 @@ var WordLearningPlugin = {
 
   switchWordbookMode(win, mode) {
     var p = this.panel(win); if (!p) return;
+
+    // The edit form is persistent DOM. After adding a new word from the Add
+    // Word tab, the card can already point to the new selected term, while the
+    // hidden edit form may still contain the previous term's fields. Always
+    // hydrate the edit form from the current selected card before showing it.
+    if (mode === 'edit') {
+      this.syncEditDraftFromSelected(win);
+    }
+
     var pages = p.querySelectorAll('[data-wl-page]');
     for (var i = 0; i < pages.length; i++) pages[i].style.display = pages[i].dataset.wlPage === mode ? '' : 'none';
     var tabs = p.querySelectorAll('[data-wl-subtab]');
@@ -2763,7 +2780,41 @@ var WordLearningPlugin = {
     if (panel) panel.style.display = 'none';
   },
 
-  panel(win) { return win.document.getElementById(this.ids.panel); },
+  panel(win) {
+    try {
+      if (!win || !win.document) return null;
+
+      // Native Zotero ItemPane can destroy/recreate the section body when the
+      // user closes one PDF and opens another.  document.getElementById() may
+      // then resolve a stale hidden/disconnected panel with the same id, so all
+      // later loadSettings()/refreshTerms() calls update the wrong node.  Keep
+      // the current panel per window and verify it is still connected.
+      var active = this.activePanelByWindow && this.activePanelByWindow.get(win);
+      if (active && active.ownerDocument === win.document && active.isConnected) {
+        return active;
+      }
+
+      var nodes = Array.prototype.slice.call(win.document.querySelectorAll('#' + this.ids.panel));
+      for (var i = nodes.length - 1; i >= 0; i--) {
+        var n = nodes[i];
+        if (n && n.isConnected) {
+          try {
+            var r = n.getBoundingClientRect ? n.getBoundingClientRect() : null;
+            var cs = win.getComputedStyle ? win.getComputedStyle(n) : null;
+            if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) continue;
+            if (r && r.width === 0 && r.height === 0) continue;
+          } catch (e) {}
+          try { this.activePanelByWindow.set(win, n); } catch (e) {}
+          return n;
+        }
+      }
+
+      return win.document.getElementById(this.ids.panel);
+    } catch (e) {
+      try { return win.document.getElementById(this.ids.panel); } catch (_) {}
+      return null;
+    }
+  },
   field(win, name) { var p = this.panel(win); return p ? p.querySelector('[data-field="' + name + '"]') : null; },
   status(win, role, text, state) {
     var p = this.panel(win); if (!p) return;
@@ -2971,7 +3022,7 @@ var WordLearningPlugin = {
 
   getDataPath() {
     try {
-      var custom = Zotero.Prefs.get('extensions.word-learning.dataPath');
+      var custom = this.prefGet('dataPath', '');
       custom = String(custom || '').trim();
       if (custom) return custom;
     } catch (e) {}
@@ -3035,11 +3086,33 @@ var WordLearningPlugin = {
     this.renderCard(win); this.renderList(win); this.renderAllWordsList(win); this.refreshTheme(win);
   },
 
+  getSelectedTerm(win) {
+    var p = this.panel(win);
+    var terms = p ? (p._wlTerms || []) : [];
+    if (!terms.length) return null;
+    var selected = this.selectedIdByWindow.get(win);
+    var term = selected ? terms.find(function (t) { return t.id === selected; }) : null;
+    if (!term) {
+      term = terms[0] || null;
+      if (term && term.id) this.selectedIdByWindow.set(win, term.id);
+    }
+    return term;
+  },
+
+  syncEditDraftFromSelected(win) {
+    var term = this.getSelectedTerm(win);
+    if (term) {
+      this.setDraft(win, term);
+      return term;
+    }
+    this.setDraft(win, {});
+    return null;
+  },
+
   renderCard(win) {
     var p = this.panel(win); if (!p) return;
     var terms = p._wlTerms || [];
-    var selected = this.selectedIdByWindow.get(win);
-    var term = terms.find(function (t) { return t.id === selected; }) || terms[0] || null;
+    var term = this.getSelectedTerm(win);
     var pos = term ? terms.findIndex(function (t) { return t.id === term.id; }) + 1 : 0;
     var posNode = p.querySelector('[data-role="card-pos"]'); if (posNode) posNode.textContent = pos + ' / ' + terms.length;
     var textNode = p.querySelector('[data-card="text"]'); if (textNode) textNode.textContent = term ? term.text || '(Untitled)' : 'No word selected';
@@ -3140,7 +3213,14 @@ var WordLearningPlugin = {
   },
 
   async saveAddTerm(win) {
-    await this.saveDraftToDocument(win, this.getAddDraft(win), 'addword-status', true);
+    var term = await this.saveDraftToDocument(win, this.getAddDraft(win), 'addword-status', true);
+    if (term) {
+      this.selectedIdByWindow.set(win, term.id);
+      this.setDraft(win, term);
+      this.renderCard(win);
+      this.renderList(win);
+      this.renderAllWordsList(win);
+    }
   },
 
   async llmCompleteAdd(win, button) {
@@ -3326,9 +3406,34 @@ var WordLearningPlugin = {
     this.updateReasoningControl(win);
   },
 
+  prefGet(key, fallback) {
+    try {
+      var value = Zotero.Prefs.get('extensions.word-learning.' + key, true);
+      if (value !== undefined && value !== null && value !== '') return value;
+    } catch (e) {}
+    try {
+      var value2 = Zotero.Prefs.get('extensions.word-learning.' + key);
+      if (value2 !== undefined && value2 !== null && value2 !== '') return value2;
+    } catch (e) {}
+    return fallback;
+  },
+
+  prefSet(key, value) {
+    try { Zotero.Prefs.set('extensions.word-learning.' + key, value, true); } catch (e) {}
+    try { Zotero.Prefs.set('extensions.word-learning.' + key, value); } catch (e) {}
+  },
+
   getSettings() {
-    function get(key, fallback) { try { return Zotero.Prefs.get('extensions.word-learning.' + key) || fallback; } catch (e) { return fallback; } }
-    return { language: get('language', 'zh-CN'), llmProvider: get('llmProvider', 'deepseek'), apiUrl: get('apiUrl', 'https://api.deepseek.com'), modelName: get('modelName', 'deepseek-v4-flash'), reasoningEffort: get('reasoningEffort', 'default'), speechStyle: get('speechStyle', 'system'), apiKey: get('apiKey', ''), dataPath: get('dataPath', '') };
+    return {
+      language: this.prefGet('language', 'zh-CN'),
+      llmProvider: this.prefGet('llmProvider', 'deepseek'),
+      apiUrl: this.prefGet('apiUrl', 'https://api.deepseek.com'),
+      modelName: this.prefGet('modelName', 'deepseek-v4-flash'),
+      reasoningEffort: this.prefGet('reasoningEffort', 'default'),
+      speechStyle: this.prefGet('speechStyle', 'system'),
+      apiKey: this.prefGet('apiKey', ''),
+      dataPath: this.prefGet('dataPath', '')
+    };
   },
 
   loadSettings(win) {
@@ -3339,7 +3444,7 @@ var WordLearningPlugin = {
         n.value = s[k] || '';
         if (k === 'speechStyle' && n.value !== (s[k] || '') && n.options.length) {
           n.selectedIndex = 0;
-          try { Zotero.Prefs.set('extensions.word-learning.speechStyle', n.value || 'system'); } catch (e) {}
+          this.prefSet('speechStyle', n.value || 'system');
         }
       }
     }
@@ -3383,7 +3488,7 @@ var WordLearningPlugin = {
     var s = this.settingsFromPanel(win);
     var p = this.panel(win);
     for (var k in s) {
-      try { Zotero.Prefs.set('extensions.word-learning.' + k, s[k]); } catch (e) {}
+      this.prefSet(k, s[k]);
       var n = p ? p.querySelector('[data-setting="' + k + '"]') : null;
       if (n && n.value !== s[k]) n.value = s[k];
     }

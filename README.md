@@ -92,21 +92,19 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.9.1
+## What's New in 0.9.3
 
-Version 0.9.1 focuses on Zotero-native embedding and theme stability.
+Version 0.9.3 fixes two state synchronization bugs in Zotero's native ItemPane lifecycle.
 
-- Stabilized the native Zotero right-side Item Pane integration with `Zotero.ItemPaneManager.registerSection(...)`.
-- Kept the `WL` toolbar entry while making the panel behave like a native right-side Zotero plugin section.
-- Fixed layout issues around the panel title bar, expand/collapse area, and content area.
-- Replaced unstable automatic Zotero/macOS theme detection with an internal `light` / `dark` theme preference.
-- Added `extensions.wordlearning.themeMode` for plugin-controlled theme state.
-- Added a dedicated theme toggle button on the far right of the top tab bar.
-- Bundled sun and moon icons, loaded as data URIs so they render inside Zotero's Item Pane.
-- Added icon fallbacks through `<img>`, `background-image`, and text symbols.
-- Fixed dark-mode colors for cards, lists, inputs, textareas, selects, chips, review hints, and status boxes.
-- Restored semantic review colors for Unknown, Blurred, Known, correct options, wrong options, selected options, and status messages.
-- Added per-character spelling states for correct and wrong input feedback.
+- Fixed settings and vocabulary appearing to disappear after closing a PDF and opening another PDF.
+- Added per-window active panel tracking so settings and vocabulary refreshes target the currently rendered Word Learning panel.
+- Rebound the active panel during native `onRender` and `onAsyncRender`.
+- Avoided stale ItemPane DOM references after switching PDFs or reader tabs.
+- Made Zotero preference read/write more robust with `prefGet(...)` and `prefSet(...)`.
+- Fixed stale Edit Word content after adding a new word and immediately entering edit mode.
+- Added selected-term lookup and edit-draft synchronization before opening Edit Word.
+- Updated selection state immediately after saving a new word.
+- Refreshed the card view, word list, and all-words list after saving.
 
 ## Repository Structure
 
@@ -116,7 +114,7 @@ Version 0.9.1 focuses on Zotero-native embedding and theme stability.
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.9.1.md
+├── RELEASE_NOTES_v0.9.3.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -137,12 +135,12 @@ Version 0.9.1 focuses on Zotero-native embedding and theme stability.
 
 ## Installation
 
-1. Download `zotero-word-learning-0.9.1.xpi` from the release page.
+1. Download `zotero-word-learning-0.9.3.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.9.1.xpi`.
+6. Select `zotero-word-learning-0.9.3.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -392,12 +390,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.9.1`
+Current version: `0.9.3`
 
 Release assets:
 
-- `zotero-word-learning-0.9.1.xpi`
-- `Word Learning 0.9.1 source.zip`
+- `zotero-word-learning-0.9.3.xpi`
+- `Word Learning 0.9.3 source no README.zip`
 
 ## License
 

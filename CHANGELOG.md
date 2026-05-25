@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.3
+
+- Fixed settings and vocabulary disappearing after closing a PDF and opening another PDF in Zotero.
+- Added per-window active panel tracking so settings and vocabulary refreshes target the currently rendered ItemPane panel instead of stale hidden DOM.
+- Rebound the active panel during native `onRender` and `onAsyncRender`.
+- Added unified preference helpers, `prefGet(...)` and `prefSet(...)`, for more robust settings persistence.
+- Fixed stale edit-form content after adding a new word and immediately opening Edit Word.
+- Added current selected-term lookup and edit-draft synchronization before entering edit mode.
+- Refreshed card, word list, and all-words list state immediately after saving a newly added word.
+
 ## 0.9.1
 
 - Stabilized native Zotero right-side Item Pane integration through `Zotero.ItemPaneManager.registerSection(...)`.
