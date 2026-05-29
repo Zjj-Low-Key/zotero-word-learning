@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1
+
+- Changed speech style option loading to refresh asynchronously after the settings panel appears.
+- Reads available voices immediately, then retries after 250ms, 800ms, 1600ms, and 3000ms in case Zotero/Firefox loads system voices late.
+- Refreshes again when `speechSynthesis` fires `voiceschanged`.
+- Uses `speechSynthesis.addEventListener('voiceschanged', fill)` instead of overwriting `speechSynthesis.onvoiceschanged`.
+- Cleans up the speech listener and retry timers through the existing panel lifecycle disposal path.
+- Preserves the current selected voice during list refresh whenever that voice is still available.
+
 ## 0.10.0
 
 - Removed `setTimeout(addControl, 0)` from the Reader selection popup integration.

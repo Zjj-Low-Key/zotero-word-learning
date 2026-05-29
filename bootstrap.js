@@ -1789,7 +1789,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.0') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.1') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -3006,6 +3006,7 @@ var WordLearningPlugin = {
       modelInput.addEventListener('change', function () { plugin.updateReasoningControl(win); });
     }
     this.updateReasoningControl(win);
+    try { this.setupSpeechVoiceLoading(win, this.panel(win)); } catch (e) {}
     return view;
   },
 
@@ -3051,6 +3052,15 @@ var WordLearningPlugin = {
   },
 
   addSpeechVoiceSelect(doc, box, win) {
+    var sel = this.addSettingSelect(doc, box, this.t('speechStyle'), 'speechStyle', [['system', this.t('speechSystem')]]);
+    sel.dataset.dynamicVoiceSelect = '1';
+    this.refreshSpeechVoiceSelect(win, sel, this.getSettings().speechStyle || 'system');
+    return sel;
+  },
+
+  refreshSpeechVoiceSelect(win, sel, selected) {
+    if (!sel || !win) return;
+    var current = sel.value || selected || 'system';
     var voices = this.getAvailableEnglishVoices(win);
     var options = [];
     if (voices.length) {
@@ -3061,14 +3071,61 @@ var WordLearningPlugin = {
     } else {
       options.push(['system', this.t('speechSystem')]);
     }
-    var sel = this.addSettingSelect(doc, box, this.t('speechStyle'), 'speechStyle', options);
-    sel.dataset.dynamicVoiceSelect = '1';
-    if (voices.length <= 1) {
-      // With only one exposed voice, show only one option. Keep it editable as
-      // a normal select, but there is nothing else to switch to.
-      sel.title = this.isChineseUI() ? '当前 Zotero/系统只暴露了一个英文语音。' : 'Only one English voice is exposed by Zotero/the system.';
+
+    sel.textContent = '';
+    for (var j = 0; j < options.length; j++) {
+      var op = win.document.createElement('option');
+      op.value = options[j][0];
+      op.textContent = options[j][1];
+      sel.appendChild(op);
     }
-    return sel;
+
+    var exists = false;
+    for (var k = 0; k < sel.options.length; k++) {
+      if (sel.options[k].value === current) { exists = true; break; }
+    }
+    sel.value = exists ? current : (sel.options[0] ? sel.options[0].value : 'system');
+
+    if (voices.length <= 1) {
+      sel.title = this.isChineseUI() ? '当前 Zotero/系统只暴露了一个英文语音。' : 'Only one English voice is exposed by Zotero/the system.';
+    } else {
+      sel.title = '';
+    }
+  },
+
+  setupSpeechVoiceLoading(win, panel) {
+    try {
+      var synth = this.getSpeechSynthesis(win);
+      if (!synth || !panel) return;
+      var plugin = this;
+      var timers = [];
+      var fill = function () {
+        try {
+          var sel = panel.querySelector('[data-setting="speechStyle"]');
+          if (!sel || !sel.isConnected) return;
+          plugin.refreshSpeechVoiceSelect(win, sel, plugin.getSettings().speechStyle || sel.value || 'system');
+        } catch (e) {
+          try { plugin.debug('speech voice refresh failed: ' + e); } catch (ignore) {}
+        }
+      };
+      fill();
+      [250, 800, 1600, 3000].forEach(function (ms) {
+        try { timers.push(win.setTimeout(fill, ms)); } catch (e) {}
+      });
+      try { synth.addEventListener('voiceschanged', fill); } catch (e) {}
+      try {
+        var body = panel.__wordLearningBody || panel;
+        var lifecycle = this.panelLifecycleByBody.get(body);
+        if (lifecycle) {
+          lifecycle.add(function () {
+            timers.forEach(function (id) { try { win.clearTimeout(id); } catch (e) {} });
+            try { synth.removeEventListener('voiceschanged', fill); } catch (e) {}
+          });
+        }
+      } catch (e) {}
+    } catch (e) {
+      this.debug('setupSpeechVoiceLoading failed: ' + e);
+    }
   },
 
   addReadonlyPathRow(doc, box, label, value) {
@@ -3933,6 +3990,8 @@ var WordLearningPlugin = {
         }
       }
     }
+    var speechNode = p.querySelector('[data-setting="speechStyle"]');
+    if (speechNode) this.refreshSpeechVoiceSelect(win, speechNode, s.speechStyle || 'system');
     this.updateReasoningControl(win);
   },
 

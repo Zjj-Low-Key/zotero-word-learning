@@ -92,14 +92,15 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.10.0 更新内容
+## 0.10.1 更新内容
 
-0.10.0 修复了 0.9.9 这一线在 Reader 选中文本弹窗中的按钮回归，同时保留紧凑、非侵入式的按钮设计。
+0.10.1 主要修复设置页里发音风格列表加载过早、只显示“系统默认”的问题。
 
-- 移除 Reader 弹窗逻辑中的 `setTimeout(addControl, 0)`。
-- 恢复同步 `append(btn)`，保证按钮在 Zotero 弹窗渲染周期内加入。
-- 保留 0.9.9 的非侵入式设计：不再使用大块容器、不再增加状态行、不修改其他插件 DOM、只追加一个紧凑按钮。
-- 保留小型蓝色按钮样式，降低遮挡 Translate 和 LLM-for-Zotero 按钮的风险。
+- 设置页创建后会先同步读取一次语音列表，再在 250ms、800ms、1600ms、3000ms 后自动重试。
+- 当 `speechSynthesis` 触发 `voiceschanged` 时会再次刷新语音列表。
+- 使用 `speechSynthesis.addEventListener('voiceschanged', fill)`，不覆盖全局 `onvoiceschanged`。
+- 新增的语音监听器和重试定时器会跟随面板生命周期自动清理。
+- 刷新语音列表时会尽量保留当前已选语音，只有在语音不存在时才回退。
 
 ## 仓库结构
 
@@ -109,7 +110,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.0.md
+├── RELEASE_NOTES_v0.10.1.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -130,12 +131,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.10.0.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.10.1.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.10.0.xpi`。
+6. 选择 `zotero-word-learning-0.10.1.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -385,12 +386,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.10.0`
+当前版本：`0.10.1`
 
 Release 资产：
 
-- `zotero-word-learning-0.10.0.xpi`
-- `Word Learning 0.10.0 source no README.zip`
+- `zotero-word-learning-0.10.1.xpi`
+- `Word Learning 0.10.1 source no README.zip`
 
 ## 许可证
 
