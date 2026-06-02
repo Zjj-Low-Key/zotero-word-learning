@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3
+
+- Added normalized duplicate detection before saving a word or phrase.
+- Treats case-only differences as the same term, for example `Abstract`, `abstract`, and ` ABSTRACT ` are considered duplicates.
+- Normalizes text with trim, whitespace collapsing, Unicode NFKC normalization, and case folding before comparison.
+- Blocks duplicate saves with a clear warning instead of silently overwriting or reusing an existing term.
+- Excludes the currently edited term from duplicate checks in the Modify Word page, so editing the selected term itself is still allowed.
+- Prevents editing one term into another existing term.
+
 ## 0.10.1
 
 - Changed speech style option loading to refresh asynchronously after the settings panel appears.
@@ -79,47 +88,3 @@
 - Added speech style selection in Settings.
 - Added local speech preview button.
 - Added Auto female, Auto male, Natural clear, Slow clear, and System default voice styles.
-
-## 0.5.4
-
-- Fixed pronunciation button in spelling review mode.
-- Changed Show Answer behavior:
-  - spelling mode now shows the correct spelling;
-  - multiple-choice modes now show and highlight the correct option.
-
-## 0.5.3
-
-- Added automatic database migration when users set a new data path.
-- If the new path has no database, the old `vocabulary.json` is copied automatically.
-- Existing databases at the new path are never overwritten.
-
-## 0.5.2
-
-- Added editable custom database path in Settings.
-- Added default database path display.
-
-## 0.5.1
-
-- Added long-term wrong-answer weighting.
-- Added persistent review statistics per word and per question type.
-
-## 0.5.0
-
-- Added spelling review mode.
-- Added per-letter green/red spelling feedback.
-- Added phrase-aware spelling slots with spaces.
-
-## 0.4.x
-
-- Added mixed review task pool.
-- Added word-level progress.
-- Added LLM-generated distractors.
-- Added DeepSeek thinking intensity support.
-- Added card/list/review/settings UI refinements.
-
-## 0.3.x
-
-- Rebuilt the plugin into a stable minimal Zotero bootstrap plugin.
-- Added global wordbook persistence.
-- Added LLM completion and connection testing.
-- Added independent Add Word, Word Card, All Words, Review, and Settings pages.
