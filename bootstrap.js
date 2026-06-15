@@ -1019,6 +1019,42 @@ var WordLearningPlugin = {
     return false;
   },
 
+
+  fallbackUIEnabled() {
+    // Compatibility guard: with plugins such as Better Notes installed, manual
+    // geometry-based sidebar injection can accidentally mount inside their note
+    // panel and leave Zotero with a gray/empty note pane.  The normal supported
+    // path is Zotero.ItemPaneManager.registerSection().  Fallback UI is kept
+    // only for explicit debugging.
+    try {
+      return !!Zotero.Prefs.get('extensions.word-learning.enableFallbackUI', true);
+    } catch (e) {}
+    return false;
+  },
+
+  scheduleRefreshTerms(win, panel, generation) {
+    try {
+      if (!win || !panel) return;
+      var plugin = this;
+      var delays = [0, 300, 1000, 2500];
+      for (var i = 0; i < delays.length; i++) {
+        (function (delay) {
+          try {
+            win.setTimeout(async function () {
+              try {
+                if (!panel.isConnected) return;
+                if (generation && !plugin.isRenderCurrent(win, generation)) return;
+                await plugin.refreshTerms(win, generation || panel.__wlRenderGeneration || plugin.currentGeneration(win));
+              } catch (e) {
+                plugin.debug('scheduled refreshTerms failed: ' + e);
+              }
+            }, delay);
+          } catch (e) {}
+        })(delays[i]);
+      }
+    } catch (e) {}
+  },
+
   registerNativeItemPaneSection() {
     if (this.nativePanelRegistered) return true;
     try {
@@ -1083,6 +1119,7 @@ var WordLearningPlugin = {
           plugin.loadSettings(win);
           plugin.normalizeDarkElements(win, panel);
           plugin.normalizeDarkSpecificWidgets(win, panel);
+          plugin.scheduleRefreshTerms(win, panel, generation);
         },
         onAsyncRender: async function (ctx) {
           try {
@@ -1216,10 +1253,11 @@ var WordLearningPlugin = {
     this.removeFromWindow(win);
     this.exposeHost(win);
     this.injectToolsMenu(win);
-    if (!this.nativePanelRegistered) {
-      // Fallback only. Normal Zotero 7+ path is ItemPaneManager.registerSection().
+    if (!this.nativePanelRegistered && this.fallbackUIEnabled()) {
+      // Debug-only fallback. Normal Zotero 7+ path is ItemPaneManager.registerSection().
+      // Do not auto-mount into Zotero's right pane because that can collide with
+      // Better Notes and other sidebar plugins.
       this.injectButton(win);
-      this.ensurePanel(win);
     }
   },
 
@@ -1702,27 +1740,18 @@ var WordLearningPlugin = {
       return panel;
     }
 
-    var host = this.findSidebarHost(win);
-    var embedded = !!host;
+    // Fallback panel is now always detached/floating.  Do not guess or use a
+    // Zotero sidebar host, because Better Notes and other plugins own parts of
+    // that area and geometry-based injection can break their panels.
+    var embedded = false;
     panel = this.html(doc, 'div', { id: this.ids.panel, styleObj: this.panelStyle(embedded) });
-    panel.dataset.embedded = embedded ? '1' : '0';
-    var generation = this.beginRender(win, panel, 'fallback-ensurePanel');
+    panel.dataset.embedded = '0';
+    panel.dataset.fallbackFloating = '1';
+    var generation = this.beginRender(win, panel, 'fallback-floating-ensurePanel');
     this.buildPanel(win, panel);
     panel.__wlRenderGeneration = generation;
 
-    if (embedded) {
-      try {
-        panel.style.height = 'auto';
-        panel.style.maxHeight = Math.max(420, Math.min(720, Math.floor((host.getBoundingClientRect().height || 620) - 24))) + 'px';
-      } catch (e) {
-        panel.style.maxHeight = '640px';
-      }
-      // Append as a sibling-like section in the right pane, not inside another
-      // plugin's body. findSidebarHost() normalizes to the shared section container.
-      host.appendChild(panel);
-    } else {
-      doc.documentElement.appendChild(panel);
-    }
+    doc.documentElement.appendChild(panel);
 
     this.setActivePanel(win, panel, panel);
     this.setupPanelHandlers(win, panel, panel);
@@ -1732,6 +1761,7 @@ var WordLearningPlugin = {
     this.setupThemeWatcher(win, panel);
     this.loadSettings(win);
     this.refreshTerms(win, generation);
+    this.scheduleRefreshTerms(win, panel, generation);
     return panel;
   },
 
@@ -1789,7 +1819,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.1') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.5') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -2585,6 +2615,10 @@ var WordLearningPlugin = {
       formBox.appendChild(r);
     }
     formBox.appendChild(this.statusBox(doc, 'addword-status', this.t('addReady')));
+    var remember = function () { try { plugin.rememberAddDraft(win); } catch (e) {} };
+    var addControls = formBox.querySelectorAll('[data-add-field]');
+    for (var ac = 0; ac < addControls.length; ac++) { addControls[ac].addEventListener('input', remember); addControls[ac].addEventListener('change', remember); }
+    try { this.restoreAddDraft(win); } catch (e) {}
     return view;
   },
 
@@ -2607,6 +2641,29 @@ var WordLearningPlugin = {
     return el;
   },
 
+
+  rememberAddDraft(win) {
+    try { var d = this.getAddDraft(win); this.addDraftByWindow.set(win, d); return d; } catch (e) { return null; }
+  },
+
+  restoreAddDraft(win) {
+    try {
+      var d = this.addDraftByWindow.get(win);
+      if (d && (d.text || d.example || d.pronunciation || d.chineseMeaning || d.contextExplanation || (d.phrases && d.phrases.length))) this.setAddDraft(win, d);
+    } catch (e) {}
+  },
+
+  updateLocalTermAfterSave(win, term) {
+    try {
+      var p = this.panel(win); if (!p || !term || !term.id) return;
+      if (!Array.isArray(p._wlTerms)) p._wlTerms = [];
+      var found = false;
+      for (var i = 0; i < p._wlTerms.length; i++) { if (p._wlTerms[i].id === term.id) { p._wlTerms[i] = term; found = true; break; } }
+      if (!found) p._wlTerms.push(term);
+      this.selectedIdByWindow.set(win, term.id); this.setDraft(win, term); this.renderCard(win); this.renderList(win); this.renderAllWordsList(win);
+    } catch (e) { this.debug('updateLocalTermAfterSave failed: ' + e); }
+  },
+
   getAddDraft(win) {
     var phrases = (this.addField(win, 'phrases')?.value || '').split(/\r?\n|,/).map(function (x) { return x.trim(); }).filter(Boolean);
     return {
@@ -2622,6 +2679,7 @@ var WordLearningPlugin = {
 
   setAddDraft(win, term) {
     term = term || {};
+    try { this.addDraftByWindow.set(win, { id: term.id || '', text: term.text || '', example: term.example || (term.examples && term.examples[0] && term.examples[0].sentence) || '', pronunciation: term.pronunciation || '', chineseMeaning: term.chineseMeaning || '', contextExplanation: term.contextExplanation || '', phrases: Array.isArray(term.phrases) ? term.phrases.slice() : [] }); } catch (e) {}
     var textField = this.addField(win, 'text');
     var exampleField = this.addField(win, 'example');
     var pronunciationField = this.addField(win, 'pronunciation');
@@ -3060,18 +3118,27 @@ var WordLearningPlugin = {
 
   refreshSpeechVoiceSelect(win, sel, selected) {
     if (!sel || !win) return;
-    var current = sel.value || selected || 'system';
+    var saved = selected || this.getSettings().speechStyle || 'system';
+    var current = sel.value || saved || 'system';
     var voices = this.getAvailableEnglishVoices(win);
-    var options = [];
+    var options = [['system', this.t('speechSystem')]];
+    var seenOptions = { system: true };
     if (voices.length) {
       for (var i = 0; i < voices.length; i++) {
+        var value = this.voiceId(voices[i]);
+        if (seenOptions[value]) continue;
+        seenOptions[value] = true;
         var label = (voices[i].name || 'English Voice') + (voices[i].lang ? ' · ' + voices[i].lang : '');
-        options.push([this.voiceId(voices[i]), label]);
+        options.push([value, label]);
       }
-    } else {
-      options.push(['system', this.t('speechSystem')]);
     }
-
+    var target = current || saved || 'system';
+    if (target && !seenOptions[target]) {
+      var parsed = this.parseVoiceId(target);
+      var fallbackLabel = parsed && parsed.name ? (parsed.name + (parsed.lang ? ' · ' + parsed.lang : '') + '  (saved)') : this.t('speechSystem');
+      options.push([target, fallbackLabel]);
+      seenOptions[target] = true;
+    }
     sel.textContent = '';
     for (var j = 0; j < options.length; j++) {
       var op = win.document.createElement('option');
@@ -3079,12 +3146,7 @@ var WordLearningPlugin = {
       op.textContent = options[j][1];
       sel.appendChild(op);
     }
-
-    var exists = false;
-    for (var k = 0; k < sel.options.length; k++) {
-      if (sel.options[k].value === current) { exists = true; break; }
-    }
-    sel.value = exists ? current : (sel.options[0] ? sel.options[0].value : 'system');
+    sel.value = target || 'system';
 
     if (voices.length <= 1) {
       sel.title = this.isChineseUI() ? '当前 Zotero/系统只暴露了一个英文语音。' : 'Only one English voice is exposed by Zotero/the system.';
@@ -3103,7 +3165,7 @@ var WordLearningPlugin = {
         try {
           var sel = panel.querySelector('[data-setting="speechStyle"]');
           if (!sel || !sel.isConnected) return;
-          plugin.refreshSpeechVoiceSelect(win, sel, plugin.getSettings().speechStyle || sel.value || 'system');
+          plugin.refreshSpeechVoiceSelect(win, sel, sel.value || plugin.getSettings().speechStyle || 'system');
         } catch (e) {
           try { plugin.debug('speech voice refresh failed: ' + e); } catch (ignore) {}
         }
@@ -3246,6 +3308,7 @@ var WordLearningPlugin = {
       var win = panel.ownerDocument.defaultView;
       this.activePanelByWindow.set(win, panel);
       this.renderThemeToggle(win);
+      if (name !== 'addword') { this.rememberAddDraft(win); } else { this.restoreAddDraft(win); }
       // Do not clear the Add Word draft when the user switches away and back.
       // LLM completion can be expensive, so unsaved draft content should stay
       // in the form until the user explicitly clicks "New Word", saves, or Zotero
@@ -3284,33 +3347,20 @@ var WordLearningPlugin = {
       try {
         // Zotero manages visibility for native ItemPaneManager sections. We do
         // not create or append a manual panel here, because that would interfere
-        // with other plugins.
+        // with Better Notes or other sidebar plugins.
         var panel = this.panel(win);
         if (panel) {
-          panel.style.display = 'block';
           this.refreshTerms(win);
-          return;
+          this.scheduleRefreshTerms(win, panel, panel.__wlRenderGeneration || this.currentGeneration(win));
         }
       } catch (e) {}
       return;
     }
     var panel = this.ensurePanel(win);
-    if (panel && panel.dataset.embedded !== '1') {
-      var host = this.findSidebarHost(win);
-      if (host) {
-        try {
-          if (panel.parentNode) panel.parentNode.removeChild(panel);
-          panel.style.cssText = '';
-          this.applyStyle(panel, this.panelStyle(true));
-          panel.dataset.embedded = '1';
-          panel.style.height = 'auto';
-          panel.style.maxHeight = Math.max(420, Math.min(720, Math.floor((host.getBoundingClientRect().height || 620) - 24))) + 'px';
-          host.appendChild(panel);
-        } catch (e) {}
-      }
-    }
+    if (!panel) return;
     panel.style.display = 'block';
     this.refreshTerms(win);
+    this.scheduleRefreshTerms(win, panel, panel.__wlRenderGeneration || this.currentGeneration(win));
   },
 
   hidePanel(win) {
@@ -3570,7 +3620,16 @@ var WordLearningPlugin = {
   async readDocument() {
     try {
       var path = this.getDataPath();
-      if (!(await IOUtils.exists(path))) return { schemaVersion: 2, terms: [] };
+      if (!(await IOUtils.exists(path))) {
+        // Respect the user's configured database path strictly.  If a custom
+        // path is set but unavailable after Zotero restart, do not silently fall
+        // back to the default profile database, because that makes the UI show a
+        // different wordbook than the user selected.  Only getDataPath() decides
+        // between custom and default: custom path if configured, default path
+        // only when no custom path is configured.
+        this.debug('database path missing: ' + path);
+        return { schemaVersion: 2, terms: [] };
+      }
       var doc = JSON.parse(await IOUtils.readUTF8(path));
       if (!doc || typeof doc !== 'object') return { schemaVersion: 2, terms: [] };
       if (!Array.isArray(doc.terms)) doc.terms = [];
@@ -3709,6 +3768,28 @@ var WordLearningPlugin = {
   },
 
 
+
+  normalizeTermKey(text) {
+    return String(text || '')
+      .normalize('NFKC')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('en-US');
+  },
+
+  findDuplicateTerm(terms, text, excludeId) {
+    var key = this.normalizeTermKey(text);
+    if (!key) return null;
+    terms = Array.isArray(terms) ? terms : [];
+    for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      if (!t) continue;
+      if (excludeId && t.id === excludeId) continue;
+      if (this.normalizeTermKey(t.text) === key) return t;
+    }
+    return null;
+  },
+
   async saveDraftToDocument(win, draft, statusRole, clearAfterSave) {
     if (!draft.text) {
       this.status(win, statusRole || 'wordbook-status', 'Please enter a word or phrase.', 'err');
@@ -3717,7 +3798,17 @@ var WordLearningPlugin = {
     var doc = await this.readDocument();
     var now = new Date().toISOString();
     var normalizedDraft = this.normalize(draft.text);
-    var term = doc.terms.find((t) => this.normalize(t.text) === normalizedDraft) || null;
+    var selectedId = this.selectedIdByWindow.get(win) || '';
+    var isAddMode = !!clearAfterSave;
+    var duplicate = this.findDuplicateTerm(doc.terms, draft.text, isAddMode ? '' : selectedId);
+    if (duplicate) {
+      this.status(win, statusRole || 'wordbook-status', '词库中已存在“' + (duplicate.text || draft.text) + '”。大小写不同会视为同一个单词，请不要重复添加。', 'err');
+      return null;
+    }
+    var term = null;
+    if (!isAddMode && selectedId) {
+      term = doc.terms.find((t) => t.id === selectedId) || null;
+    }
     if (!term) {
       term = {
         id: this.newID('term'),
@@ -3755,14 +3846,9 @@ var WordLearningPlugin = {
   },
 
   async saveAddTerm(win) {
+    this.rememberAddDraft(win);
     var term = await this.saveDraftToDocument(win, this.getAddDraft(win), 'addword-status', true);
-    if (term) {
-      this.selectedIdByWindow.set(win, term.id);
-      this.setDraft(win, term);
-      this.renderCard(win);
-      this.renderList(win);
-      this.renderAllWordsList(win);
-    }
+    if (term) { try { this.addDraftByWindow.delete(win); } catch (e) {} this.updateLocalTermAfterSave(win, term); }
   },
 
   async llmCompleteAdd(win, button) {
@@ -3791,13 +3877,11 @@ var WordLearningPlugin = {
     var normalizedDraft = this.normalize(draft.text);
     var selectedId = draft.id || '';
     var selectedTerm = selectedId ? doc.terms.find(function (t) { return t.id === selectedId; }) : null;
-    var selectedSameText = selectedTerm && this.normalize(selectedTerm.text) === normalizedDraft;
-
-    // Important: If the user edits the Word/Phrase field while another card is
-    // selected, treat it as a new term instead of overwriting the old selected
-    // card.  This fixes the previous behaviour where adding a second word
-    // replaced the first word.
-    var term = selectedSameText ? selectedTerm : null;
+    // In the Modify Word page, the selected card is the edit target. Even if
+    // the user changes the Word/Phrase field, keep updating that selected term
+    // instead of silently creating/finding another term. Creating a new word is
+    // handled by the Add Word tab or by clearing the edit draft first.
+    var term = selectedTerm || null;
     if (!term) {
       term = doc.terms.find((t) => this.normalize(t.text) === normalizedDraft) || null;
     }
@@ -3831,7 +3915,7 @@ var WordLearningPlugin = {
     this.status(win, 'wordbook-status', 'Saved to global wordbook. Generating review distractors...', 'ok');
     await this.ensureLLMReviewDistractors(win, term, 'wordbook-status', false);
     await this.refreshTerms(win);
-    this.setDraft(win, term);
+    this.updateLocalTermAfterSave(win, term);
     this.status(win, 'wordbook-status', 'Saved to global wordbook. Total words: ' + doc.terms.length + '.', 'ok');
     this.switchWordbookMode(win, 'card');
   },
@@ -3985,8 +4069,10 @@ var WordLearningPlugin = {
       if (n) {
         n.value = s[k] || '';
         if (k === 'speechStyle' && n.value !== (s[k] || '') && n.options.length) {
-          n.selectedIndex = 0;
-          this.prefSet('speechStyle', n.value || 'system');
+          // Do not rewrite the saved speechStyle just because the OS voice list
+          // has not been exposed yet. refreshSpeechVoiceSelect() keeps the saved
+          // voice as a temporary option and voiceschanged/retry will resolve it.
+          n.value = s[k] || 'system';
         }
       }
     }

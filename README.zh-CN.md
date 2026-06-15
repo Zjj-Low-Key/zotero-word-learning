@@ -92,15 +92,15 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.10.1 更新内容
+## 0.10.5 更新内容
 
-0.10.1 主要修复设置页里发音风格列表加载过早、只显示“系统默认”的问题。
+0.10.5 将数据库路径读取逻辑改回严格模式，并保留 0.10.4 的 Better Notes 兼容修复。
 
-- 设置页创建后会先同步读取一次语音列表，再在 250ms、800ms、1600ms、3000ms 后自动重试。
-- 当 `speechSynthesis` 触发 `voiceschanged` 时会再次刷新语音列表。
-- 使用 `speechSynthesis.addEventListener('voiceschanged', fill)`，不覆盖全局 `onvoiceschanged`。
-- 新增的语音监听器和重试定时器会跟随面板生命周期自动清理。
-- 刷新语音列表时会尽量保留当前已选语音，只有在语音不存在时才回退。
+- 用户设置了自定义数据库路径时，只读取用户设置的路径。
+- 用户没有设置自定义数据库路径时，读取 Zotero profile 下的默认路径。
+- 如果用户设置的路径暂时不可用，插件会显示空词库，并在 debug 中记录 `database path missing: ...`。
+- 不再出现“自定义路径不可用 -> 自动读取默认数据库”的兜底读取。
+- 继续保留 Better Notes 兼容修复：禁用自动 fallback 侧栏注入，fallback 只允许浮动面板，并在启动后多次重试刷新词库。
 
 ## 仓库结构
 
@@ -110,7 +110,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.1.md
+├── RELEASE_NOTES_v0.10.5.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +131,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.10.1.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.10.5.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.10.1.xpi`。
+6. 选择 `zotero-word-learning-0.10.5.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -187,6 +187,8 @@ LLM 配置是可选的。没有 API Key 时，你仍然可以手动添加、编�
 默认情况下，词库保存在 Zotero profile 目录下的 `word-learning` 文件夹中。
 
 你也可以在 `设置` 中填写一个完整的自定义 JSON 文件路径。如果切换到一个新路径，且新文件不存在，插件会尝试把旧数据库复制到新路径。
+
+启动读取时会严格遵守自定义路径：如果已经配置自定义数据库路径，插件只读取该路径。如果该路径暂时不可用，Word Learning 会显示空词库，并在 debug 中记录 `database path missing: ...`，不会偷偷读取 Zotero profile 下的默认数据库。
 
 ## LLM 服务商说明
 
@@ -374,7 +376,7 @@ bash scripts/build-xpi.sh
 
 ### 修改数据库路径后词库为空
 
-检查旧数据库文件是否存在，以及 Zotero 是否有权限复制文件。必要时可以手动复制 JSON 数据库。
+如果已经配置自定义数据库路径，请检查该 JSON 文件是否存在，以及 Zotero 是否有权限读取。自定义路径缺失时会按设计显示空词库，不会兜底读取 Zotero profile 下的默认数据库。
 
 ### 发音无法播放
 
@@ -386,12 +388,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.10.1`
+当前版本：`0.10.5`
 
 Release 资产：
 
-- `zotero-word-learning-0.10.1.xpi`
-- `Word Learning 0.10.1 source no README.zip`
+- `zotero-word-learning-0.10.5.xpi`
+- `Word-Learning-0.10.5-source-no-README.zip`
 
 ## 许可证
 

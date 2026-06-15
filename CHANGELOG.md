@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.5
+
+- Removed the default database fallback read path introduced in 0.10.4.
+- Restored strict database path selection: a configured custom path is the only path read; the Zotero profile default is read only when no custom path is configured.
+- If the configured database path is missing, the plugin shows an empty wordbook and logs `database path missing: ...` in debug output instead of silently reading the default wordbook.
+- Kept the 0.10.4 Better Notes compatibility fixes: no automatic fallback sidebar injection, fallback UI is floating-only, startup retries refresh the wordbook, and the panel avoids mounting into Better Notes or Zotero Notes panes.
+
 ## 0.10.3
 
 - Added normalized duplicate detection before saving a word or phrase.

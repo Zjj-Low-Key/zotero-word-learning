@@ -92,15 +92,15 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.10.1
+## What's New in 0.10.5
 
-Version 0.10.1 improves how speech style options load in the settings panel when Zotero or Firefox exposes system voices late.
+Version 0.10.5 restores strict database path selection and keeps the Better Notes compatibility fixes from 0.10.4.
 
-- Reads available English voices once immediately, then retries after 250ms, 800ms, 1600ms, and 3000ms.
-- Refreshes the list again when `speechSynthesis` fires `voiceschanged`.
-- Uses `addEventListener('voiceschanged', ...)` instead of replacing the global `onvoiceschanged` handler.
-- Cleans up retry timers and voice listeners when the Word Learning panel is destroyed.
-- Preserves the current selected voice whenever it is still available after a refresh.
+- If a custom database path is configured, the plugin reads only that path.
+- If no custom database path is configured, the plugin reads the default database under the Zotero profile.
+- If the configured path is missing, the wordbook stays empty and debug logs include `database path missing: ...`.
+- The plugin no longer silently falls back from a missing custom path to the default database.
+- Better Notes compatibility remains in place: automatic fallback sidebar injection is disabled, fallback UI is floating-only, and startup refresh retries are preserved.
 
 ## Repository Structure
 
@@ -110,7 +110,7 @@ Version 0.10.1 improves how speech style options load in the settings panel when
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.1.md
+├── RELEASE_NOTES_v0.10.5.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +131,12 @@ Version 0.10.1 improves how speech style options load in the settings panel when
 
 ## Installation
 
-1. Download `zotero-word-learning-0.10.1.xpi` from the release page.
+1. Download `zotero-word-learning-0.10.5.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.10.1.xpi`.
+6. Select `zotero-word-learning-0.10.5.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -187,6 +187,8 @@ Then click `Test connection`. The plugin sends a small request and shows the HTT
 By default, the wordbook is stored in the Zotero profile directory under a `word-learning` folder.
 
 You can also enter a custom full JSON file path in `Settings`. If you change to a new path and the new file does not exist, the plugin tries to copy the old database to the new path.
+
+When a custom database path is configured, startup reads are strict: the plugin reads only that custom path. If that path is temporarily unavailable, Word Learning shows an empty wordbook and logs `database path missing: ...`; it does not read the default profile database as a fallback.
 
 ## LLM Provider Notes
 
@@ -374,7 +376,7 @@ Check the provider, API URL, model, and API key. Use `Test connection` in Settin
 
 ### The database is empty after changing paths
 
-Check whether the old database file existed and whether Zotero had permission to copy it. If needed, copy the JSON file manually.
+If a custom database path is configured, check that the configured JSON file exists and that Zotero can read it. Missing custom paths intentionally show an empty wordbook instead of falling back to the default profile database.
 
 ### Pronunciation does not play
 
@@ -386,12 +388,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.10.1`
+Current version: `0.10.5`
 
 Release assets:
 
-- `zotero-word-learning-0.10.1.xpi`
-- `Word Learning 0.10.1 source no README.zip`
+- `zotero-word-learning-0.10.5.xpi`
+- `Word-Learning-0.10.5-source-no-README.zip`
 
 ## License
 
