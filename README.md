@@ -92,15 +92,14 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.10.5
+## What's New in 0.10.6
 
-Version 0.10.5 restores strict database path selection and keeps the Better Notes compatibility fixes from 0.10.4.
+Version 0.10.6 improves panel refresh, connection testing, and PDF-selection handoff.
 
-- If a custom database path is configured, the plugin reads only that path.
-- If no custom database path is configured, the plugin reads the default database under the Zotero profile.
-- If the configured path is missing, the wordbook stays empty and debug logs include `database path missing: ...`.
-- The plugin no longer silently falls back from a missing custom path to the default database.
-- Better Notes compatibility remains in place: automatic fallback sidebar injection is disabled, fallback UI is floating-only, and startup refresh retries are preserved.
+- Adds a visible `Refresh` action in the panel header to rebind the current panel and refresh wordbook/settings state without resetting the plugin.
+- `Test connection` now saves the current settings silently, so the result is no longer overwritten by a generic "settings saved" status.
+- Connection-test output now includes provider, model, endpoint, HTTP status, elapsed time, and a response snippet.
+- PDF selection handoff now tries the reader window, parent/top windows, and the main Zotero window, then retries after short delays if the target panel is not ready yet.
 
 ## Repository Structure
 
@@ -110,7 +109,7 @@ Version 0.10.5 restores strict database path selection and keeps the Better Note
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.5.md
+├── RELEASE_NOTES_v0.10.6.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +130,12 @@ Version 0.10.5 restores strict database path selection and keeps the Better Note
 
 ## Installation
 
-1. Download `zotero-word-learning-0.10.5.xpi` from the release page.
+1. Download `zotero-word-learning-0.10.6.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.10.5.xpi`.
+6. Select `zotero-word-learning-0.10.6.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -388,12 +387,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.10.5`
+Current version: `0.10.6`
 
 Release assets:
 
-- `zotero-word-learning-0.10.5.xpi`
-- `Word-Learning-0.10.5-source-no-README.zip`
+- `zotero-word-learning-0.10.6.xpi`
+- `Word-Learning-0.10.6-source-no-README.zip`
 
 ## License
 

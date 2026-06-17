@@ -92,15 +92,14 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.10.5 更新内容
+## 0.10.6 更新内容
 
-0.10.5 将数据库路径读取逻辑改回严格模式，并保留 0.10.4 的 Better Notes 兼容修复。
+0.10.6 主要改进了面板刷新、连接测试反馈，以及从 PDF 选中文本打开添加草稿的稳定性。
 
-- 用户设置了自定义数据库路径时，只读取用户设置的路径。
-- 用户没有设置自定义数据库路径时，读取 Zotero profile 下的默认路径。
-- 如果用户设置的路径暂时不可用，插件会显示空词库，并在 debug 中记录 `database path missing: ...`。
-- 不再出现“自定义路径不可用 -> 自动读取默认数据库”的兜底读取。
-- 继续保留 Better Notes 兼容修复：禁用自动 fallback 侧栏注入，fallback 只允许浮动面板，并在启动后多次重试刷新词库。
+- 在面板顶部新增了显式的 `刷新状态` 按钮，可重新绑定当前面板并刷新词库/设置状态，而不需要重置插件。
+- `测试连接` 现在会静默保存当前设置，不再被“设置已保存”这类通用提示覆盖测试结果。
+- 连接测试状态会显示 Provider、Model、Endpoint、HTTP 状态、耗时和响应片段，便于定位配置问题。
+- 从 PDF 选中文本打开添加草稿时，会依次尝试 reader 窗口、父窗口、顶层窗口和 Zotero 主窗口；如果面板尚未准备好，还会自动重试几次。
 
 ## 仓库结构
 
@@ -110,7 +109,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.5.md
+├── RELEASE_NOTES_v0.10.6.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -131,12 +130,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.10.5.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.10.6.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.10.5.xpi`。
+6. 选择 `zotero-word-learning-0.10.6.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -388,12 +387,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.10.5`
+当前版本：`0.10.6`
 
 Release 资产：
 
-- `zotero-word-learning-0.10.5.xpi`
-- `Word-Learning-0.10.5-source-no-README.zip`
+- `zotero-word-learning-0.10.6.xpi`
+- `Word-Learning-0.10.6-source-no-README.zip`
 
 ## 许可证
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.6
+
+- Added a visible `Refresh` / `刷新状态` action in the panel header so users can rebind the current panel and refresh wordbook/settings state without resetting the plugin.
+- Split settings persistence into `saveSettingsCore(...)` so `Test connection` can save the current provider/model/API values without rebuilding the panel.
+- Improved connection-test feedback: the settings status now shows the provider, model, endpoint, HTTP status, elapsed time, and a response snippet instead of being overwritten by a generic "settings saved" message.
+- Improved PDF selection handling across reader/main-window contexts by resolving candidate windows, rebinding the active panel, and retrying panel application after delayed pane creation.
+
 ## 0.10.5
 
 - Removed the default database fallback read path introduced in 0.10.4.

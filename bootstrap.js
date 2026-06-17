@@ -870,6 +870,11 @@ var WordLearningPlugin = {
         return true;
       }
 
+      if (button.dataset && button.dataset.role === 'soft-refresh') {
+        this.softRefreshPanel(win, button);
+        return true;
+      }
+
       if (button.dataset && button.dataset.wlSubtab) {
         this.switchWordbookMode(win, button.dataset.wlSubtab);
         return true;
@@ -934,6 +939,10 @@ var WordLearningPlugin = {
 
       if (label.indexOf('保存设置') >= 0 || label.indexOf('save settings') >= 0) {
         this.saveSettings(win);
+        return true;
+      }
+      if (label.indexOf('刷新状态') >= 0 || label === 'refresh') {
+        this.softRefreshPanel(win, button);
         return true;
       }
       if (label.indexOf('测试连接') >= 0 || label.indexOf('test connection') >= 0) {
@@ -1819,7 +1828,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.5') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.6') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -1851,6 +1860,15 @@ var WordLearningPlugin = {
     }
 
     var tabActions = this.html(doc, 'div', { dataset: { role: 'wl-tab-actions' } });
+    var refreshBtn = this.smallButton(doc, this.isChineseUI() ? '刷新状态' : 'Refresh');
+    refreshBtn.dataset.role = 'soft-refresh';
+    refreshBtn.title = this.isChineseUI() ? '重新绑定当前面板并刷新词库/设置，不重置插件' : 'Rebind the current panel and refresh wordbook/settings without resetting the plugin';
+    refreshBtn.style.minWidth = this.isChineseUI() ? '70px' : '64px';
+    refreshBtn.addEventListener('click', function (event) {
+      try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
+      plugin.softRefreshPanel(win, refreshBtn);
+    });
+    tabActions.appendChild(refreshBtn);
     var themeToggle = this.smallButton(doc, '');
     themeToggle.dataset.role = 'theme-toggle';
     themeToggle.title = this.isChineseUI() ? '切换日间/夜间模式' : 'Toggle light/dark mode';
@@ -4113,7 +4131,8 @@ var WordLearningPlugin = {
     }
   },
 
-  async saveSettings(win) {
+  async saveSettingsCore(win, options) {
+    options = options || {};
     var oldPath = this.getDataPath();
     var s = this.settingsFromPanel(win);
     var p = this.panel(win);
@@ -4125,28 +4144,36 @@ var WordLearningPlugin = {
     var newPath = this.getDataPath();
     var migration = await this.migrateDataPathIfNeeded(oldPath, newPath);
 
-    // Rebuild the whole panel after saving settings so static labels and
-    // the effective database path are regenerated.
-    this.rebuildPanelUI(win, 'settings');
-    await this.refreshTerms(win);
+    if (!options.silent) {
+      // Rebuild the whole panel after saving settings so static labels and
+      // the effective database path are regenerated.
+      this.rebuildPanelUI(win, 'settings');
+      await this.refreshTerms(win);
 
-    var msg = this.isChineseUI() ? '设置已保存。' : 'Settings saved.';
-    if (oldPath !== newPath) {
-      if (migration.copied) {
-        msg += this.isChineseUI() ? ' 新路径没有数据库，已自动复制旧数据库到新路径。' : ' The new path had no database, so the old database was copied automatically.';
-      } else if (migration.reason === 'new-exists') {
-        msg += this.isChineseUI() ? ' 新路径已有数据库，已直接使用新路径数据。' : ' The new path already has a database; using that data.';
-      } else if (migration.reason === 'old-missing') {
-        msg += this.isChineseUI() ? ' 旧路径没有数据库，新路径将从空词库开始。' : ' No database existed at the old path; the new path will start empty.';
-      } else if (migration.reason === 'error') {
-        msg += this.isChineseUI() ? ' 自动复制旧数据库失败，请检查路径权限或手动复制。' : ' Automatic database copy failed; check permissions or copy manually.';
+      var msg = this.isChineseUI() ? '设置已保存。' : 'Settings saved.';
+      if (oldPath !== newPath) {
+        if (migration.copied) {
+          msg += this.isChineseUI() ? ' 新路径没有数据库，已自动复制旧数据库到新路径。' : ' The new path had no database, so the old database was copied automatically.';
+        } else if (migration.reason === 'new-exists') {
+          msg += this.isChineseUI() ? ' 新路径已有数据库，已直接使用新路径数据。' : ' The new path already has a database; using that data.';
+        } else if (migration.reason === 'old-missing') {
+          msg += this.isChineseUI() ? ' 旧路径没有数据库，新路径将从空词库开始。' : ' No database existed at the old path; the new path will start empty.';
+        } else if (migration.reason === 'error') {
+          msg += this.isChineseUI() ? ' 自动复制旧数据库失败，请检查路径权限或手动复制。' : ' Automatic database copy failed; check permissions or copy manually.';
+        } else {
+          msg += this.isChineseUI() ? ' 数据库路径已更改。' : ' Database path changed.';
+        }
       } else {
-        msg += this.isChineseUI() ? ' 数据库路径已更改。' : ' Database path changed.';
+        msg += this.isChineseUI() ? ' 界面语言已更新。' : ' UI language updated.';
       }
-    } else {
-      msg += this.isChineseUI() ? ' 界面语言已更新。' : ' UI language updated.';
+      this.status(win, 'settings-status', msg, migration.reason === 'error' ? 'err' : 'ok');
     }
-    this.status(win, 'settings-status', msg, migration.reason === 'error' ? 'err' : 'ok');
+
+    return { settings: s, oldPath: oldPath, newPath: newPath, migration: migration };
+  },
+
+  async saveSettings(win) {
+    return await this.saveSettingsCore(win, { silent: false });
   },
 
   joinUrl(base, suffix) { base = String(base || '').trim().replace(/\/+$/, ''); if (!base) return suffix; if (base.endsWith('/chat/completions') || base.endsWith('/v1/messages') || base.indexOf(':generateContent') >= 0) return base; return base + suffix; },
@@ -4200,13 +4227,78 @@ var WordLearningPlugin = {
   contentFromResponse(json) { return json?.choices?.[0]?.message?.content || json?.content?.[0]?.text || json?.candidates?.[0]?.content?.parts?.[0]?.text || ''; },
 
   async testConnection(win, button) {
-    var generation = this.currentGeneration(win);
-    this.saveSettings(win); var s = this.settingsFromPanel(win); if (!s.apiUrl || !s.modelName || !s.apiKey) { this.status(win, 'settings-status', 'Missing API URL, model name, or API key.', 'err'); return; }
-    var req = this.buildChatRequest(s, 'Reply with OK.', 32); if (button) button.disabled = true; this.status(win, 'settings-status', 'Testing...\nPOST ' + req.url, '');
-    try { var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) }); var text = await res.text(); if (!this.isRenderCurrent(win, generation)) return; this.status(win, 'settings-status', (res.ok ? 'Success' : 'Failure') + ': HTTP ' + res.status + '\n' + text.slice(0, 700), res.ok ? 'ok' : 'err'); }
-    catch (e) { if (this.isRenderCurrent(win, generation)) this.status(win, 'settings-status', 'Failure: ' + (e.message || e), 'err'); } finally { try { if (this.isRenderCurrent(win, generation) && button) button.disabled = false; } catch (e) {} }
-  },
+    var oldLabel = '';
+    try {
+      if (!win) win = this.getMainWindow();
+      var p = this.panel(win);
+      if (!p) return;
 
+      // Save the current API/provider/model values without rebuilding the panel.
+      // Rebuilding here used to overwrite the test result with "settings saved",
+      // so users could not tell which endpoint was actually tested.
+      var saved = await this.saveSettingsCore(win, { silent: true });
+      var s = saved.settings || this.settingsFromPanel(win);
+      s = this.normalizeSettings(s);
+
+      if (!s.apiUrl || !s.modelName || !s.apiKey) {
+        this.status(win, 'settings-status', this.isChineseUI() ? '缺少 API URL、Model 或 API Key。' : 'Missing API URL, model name, or API key.', 'err');
+        return;
+      }
+
+      var req = this.buildChatRequest(s, 'Reply with exactly OK.', 32);
+      if (button) {
+        oldLabel = button.textContent || '';
+        button.disabled = true;
+        button.textContent = this.isChineseUI() ? '测试中...' : 'Testing...';
+      }
+
+      var startedAt = Date.now();
+      this.status(
+        win,
+        'settings-status',
+        (this.isChineseUI() ? '正在测试当前 API 配置...' : 'Testing current API configuration...') +
+          '\nProvider: ' + (s.llmProvider || 'custom') +
+          '\nModel: ' + s.modelName +
+          '\nEndpoint: ' + req.url,
+        ''
+      );
+
+      var res = await this.fetchWithTimeout(req.url, {
+        method: 'POST',
+        headers: req.headers,
+        body: JSON.stringify(req.body)
+      });
+      var text = await res.text();
+      var elapsed = Date.now() - startedAt;
+      var ok = !!res.ok;
+      var snippet = text.slice(0, 900);
+      var label = ok ? (this.isChineseUI() ? '连接成功' : 'Connection succeeded') : (this.isChineseUI() ? '连接失败' : 'Connection failed');
+
+      this.status(
+        win,
+        'settings-status',
+        label +
+          '\nProvider: ' + (s.llmProvider || 'custom') +
+          '\nModel: ' + s.modelName +
+          '\nEndpoint: ' + req.url +
+          '\nHTTP: ' + res.status + ' ' + (res.statusText || '') +
+          '\nTime: ' + elapsed + ' ms' +
+          '\nResponse: ' + snippet,
+        ok ? 'ok' : 'err'
+      );
+    } catch (e) {
+      try {
+        this.status(win, 'settings-status', (this.isChineseUI() ? '连接失败：' : 'Connection failed: ') + (e.message || e), 'err');
+      } catch (e2) {}
+    } finally {
+      try {
+        if (button) {
+          button.disabled = false;
+          if (oldLabel) button.textContent = oldLabel;
+        }
+      } catch (e3) {}
+    }
+  },
 
   async llmCompleteDraft(win, button, d, statusRole, applyData) {
     var generation = this.currentGeneration(win);
@@ -5040,15 +5132,81 @@ var WordLearningPlugin = {
   extractSelectionText(event) { var params = event?.params || {}; var text = params.annotation?.text || params.annotation?.comment || params.text || params.selectedText || params.selectionText || ''; text = String(text || '').trim(); if (!text) { try { text = String(event?.doc?.getSelection?.().toString() || '').trim(); } catch (e) {} } return text; },
   buildSelectionPayload(event) { var params = event?.params || {}; var text = this.extractSelectionText(event); return { text: text, source: { selectedText: text, createdAt: new Date().toISOString() }, createdAt: new Date().toISOString() }; },
   loadLastSelectionIntoDraft(win) { if (!this.lastSelectionPayload?.text) { this.status(win, 'wordbook-status', 'No captured reader selection yet.', 'err'); return; } this.setDraft(win, { text: this.lastSelectionPayload.text, example: this.lastSelectionPayload.text }); this.status(win, 'wordbook-status', 'Selection loaded. Review, LLM Complete, then Save.', 'ok'); },
-  openPanelWithSelection(win, payload) {
-    this.lastSelectionPayload = payload;
-    this.showPanel(win);
-    var p = win ? this.panel(win) : null;
-    if (p) {
+  windowFromReaderSelectionEvent(event) {
+    try {
+      if (event && event.doc && event.doc.defaultView) return event.doc.defaultView;
+    } catch (e) {}
+    try {
+      var params = event && event.params ? event.params : {};
+      if (params.reader && params.reader._iframeWindow) return params.reader._iframeWindow;
+      if (params.reader && params.reader._window) return params.reader._window;
+    } catch (e2) {}
+    return null;
+  },
+
+  candidateWindowsForSelection(win) {
+    var out = [];
+    function add(w) {
+      try {
+        if (w && w.document && out.indexOf(w) < 0) out.push(w);
+      } catch (e) {}
+    }
+    add(win);
+    try { add(win && win.parent); } catch (e1) {}
+    try { add(win && win.top); } catch (e2) {}
+    try { add(this.getMainWindow()); } catch (e3) {}
+    return out;
+  },
+
+  applySelectionPayloadToPanel(win, payload) {
+    try {
+      if (!win || !payload || !payload.text) return false;
+      var p = this.panel(win);
+      if (!p) return false;
+      this.setActivePanel(win, p.__wordLearningBody || p, p);
       this.switchTab(p, 'addword');
       this.setAddDraft(win, { text: payload.text, example: payload.text });
-      this.status(win, 'addword-status', 'Draft opened from PDF selection.', 'ok');
+      this.status(win, 'addword-status', this.isChineseUI() ? '已从 PDF 选中文本创建添加草稿。' : 'Draft opened from PDF selection.', 'ok');
+      return true;
+    } catch (e) {
+      this.debug('applySelectionPayloadToPanel failed: ' + e);
+      return false;
     }
+  },
+
+  openPanelWithSelection(win, payload) {
+    this.lastSelectionPayload = payload;
+    var candidates = this.candidateWindowsForSelection(win);
+    var applied = false;
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        this.showPanel(candidates[i]);
+        if (this.applySelectionPayloadToPanel(candidates[i], payload)) {
+          applied = true;
+          break;
+        }
+      } catch (e) {}
+    }
+
+    var plugin = this;
+    var target = candidates[0] || this.getMainWindow();
+    [120, 450, 1000, 2000].forEach(function (delay) {
+      try {
+        target.setTimeout(function () {
+          if (applied) return;
+          var retryWins = plugin.candidateWindowsForSelection(target);
+          for (var j = 0; j < retryWins.length; j++) {
+            try {
+              plugin.showPanel(retryWins[j]);
+              if (plugin.applySelectionPayloadToPanel(retryWins[j], payload)) {
+                applied = true;
+                break;
+              }
+            } catch (e) {}
+          }
+        }, delay);
+      } catch (e) {}
+    });
   },
 
   registerReaderSelectionPopup() {
@@ -5123,7 +5281,8 @@ var WordLearningPlugin = {
         try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
         try {
           var payload = plugin.buildSelectionPayload(event);
-          plugin.openPanelWithSelection(plugin.getMainWindow(), payload);
+          var targetWin = plugin.windowFromReaderSelectionEvent(event) || plugin.getMainWindow();
+          plugin.openPanelWithSelection(targetWin, payload);
         } catch (e) {
           plugin.debug('reader selection button failed: ' + e);
         }
