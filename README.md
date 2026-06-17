@@ -92,14 +92,14 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.10.6
+## What's New in 0.10.7
 
-Version 0.10.6 improves panel refresh, connection testing, and PDF-selection handoff.
+Version 0.10.7 fixes the top-button layout regression introduced in 0.10.6.
 
-- Adds a visible `Refresh` action in the panel header to rebind the current panel and refresh wordbook/settings state without resetting the plugin.
-- `Test connection` now saves the current settings silently, so the result is no longer overwritten by a generic "settings saved" status.
-- Connection-test output now includes provider, model, endpoint, HTTP status, elapsed time, and a response snippet.
-- PDF selection handoff now tries the reader window, parent/top windows, and the main Zotero window, then retries after short delays if the target panel is not ready yet.
+- Removes the separate right-aligned `wl-tab-actions` grouping used for `Refresh` and the theme toggle in 0.10.6.
+- Returns `Refresh` and the light/dark toggle to the same top button flow as `Add Word`, `Word Card`, `All Words`, `Review`, and `Settings`.
+- Lets all top buttons wrap naturally when the Zotero side pane becomes narrow, instead of leaving the last two controls isolated on the right or on a detached next line.
+- Keeps a compatibility style fallback for older DOM that still contains `wl-tab-actions`, but that block no longer forces a right-aligned layout.
 
 ## Repository Structure
 
@@ -109,7 +109,7 @@ Version 0.10.6 improves panel refresh, connection testing, and PDF-selection han
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.6.md
+├── RELEASE_NOTES_v0.10.7.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -130,12 +130,12 @@ Version 0.10.6 improves panel refresh, connection testing, and PDF-selection han
 
 ## Installation
 
-1. Download `zotero-word-learning-0.10.6.xpi` from the release page.
+1. Download `zotero-word-learning-0.10.7.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.10.6.xpi`.
+6. Select `zotero-word-learning-0.10.7.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -387,12 +387,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.10.6`
+Current version: `0.10.7`
 
 Release assets:
 
-- `zotero-word-learning-0.10.6.xpi`
-- `Word-Learning-0.10.6-source-no-README.zip`
+- `zotero-word-learning-0.10.7.xpi`
+- `Word-Learning-0.10.7-source-no-README.zip`
 
 ## License
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.7
+
+- Fixed the `Refresh` / `刷新状态` and theme-toggle button layout regression introduced in 0.10.6.
+- Removed the independent right-aligned `wl-tab-actions` group and returned both buttons to the main top tab-button flow.
+- The refresh button and theme toggle now wrap naturally with `Add Word`, `Word Card`, `All Words`, `Review`, and `Settings` when the Zotero side pane becomes narrow.
+- Kept a compatibility CSS fallback for older DOM that still exposes `data-role="wl-tab-actions"`, but it no longer forces a separate right-aligned block.
+
 ## 0.10.6
 
 - Added a visible `Refresh` / `刷新状态` action in the panel header so users can rebind the current panel and refresh wordbook/settings state without resetting the plugin.

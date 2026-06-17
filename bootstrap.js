@@ -444,12 +444,11 @@ var WordLearningPlugin = {
 
 
 #wl-panel-v026 [data-role="wl-tab-actions"] {
-  margin-left: auto !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 6px !important;
-  flex: 0 0 auto !important;
+  /* Kept only for compatibility with older DOM. 0.10.7 no longer groups the
+     refresh/theme buttons into a right-aligned action block, because that block
+     wrapped independently and could be clipped in narrow Zotero side panes. */
+  display: contents !important;
+  margin-left: 0 !important;
 }
 #wl-panel-v026 [data-role="theme-toggle"] {
   width: 32px !important;
@@ -1828,7 +1827,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.6') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.7') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -1846,7 +1845,7 @@ var WordLearningPlugin = {
     header.appendChild(close);
     root.appendChild(header);
 
-    var tabs = this.html(doc, 'div', { dataset: { role: 'wl-tabs' }, styleObj: { display: 'flex', gap: '6px', padding: '8px 10px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' } });
+    var tabs = this.html(doc, 'div', { dataset: { role: 'wl-tabs' }, styleObj: { display: 'flex', gap: '6px', padding: '8px 10px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-start' } });
     var names = [['addword', this.t('addWord')], ['wordbook', this.t('cardView')], ['allwords', this.t('allWords')], ['review', this.t('review')], ['settings', this.t('settings')]];
     for (var i = 0; i < names.length; i++) {
       var tab = this.smallButton(doc, names[i][1]);
@@ -1859,19 +1858,21 @@ var WordLearningPlugin = {
       tabs.appendChild(tab);
     }
 
-    var tabActions = this.html(doc, 'div', { dataset: { role: 'wl-tab-actions' } });
     var refreshBtn = this.smallButton(doc, this.isChineseUI() ? '刷新状态' : 'Refresh');
     refreshBtn.dataset.role = 'soft-refresh';
     refreshBtn.title = this.isChineseUI() ? '重新绑定当前面板并刷新词库/设置，不重置插件' : 'Rebind the current panel and refresh wordbook/settings without resetting the plugin';
     refreshBtn.style.minWidth = this.isChineseUI() ? '70px' : '64px';
+    refreshBtn.style.flex = '0 0 auto';
     refreshBtn.addEventListener('click', function (event) {
       try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
       plugin.softRefreshPanel(win, refreshBtn);
     });
-    tabActions.appendChild(refreshBtn);
+    tabs.appendChild(refreshBtn);
+
     var themeToggle = this.smallButton(doc, '');
     themeToggle.dataset.role = 'theme-toggle';
     themeToggle.title = this.isChineseUI() ? '切换日间/夜间模式' : 'Toggle light/dark mode';
+    themeToggle.style.flex = '0 0 auto';
     themeToggle.addEventListener('click', function (event) {
       try { event.preventDefault(); event.stopPropagation(); } catch (e) {}
       var current = plugin.getThemeMode(win);
@@ -1879,8 +1880,7 @@ var WordLearningPlugin = {
       plugin.setThemeMode(win, next);
       plugin.fillThemeToggleButton(doc, themeToggle, next);
     });
-    tabActions.appendChild(themeToggle);
-    tabs.appendChild(tabActions);
+    tabs.appendChild(themeToggle);
     this.fillThemeToggleButton(doc, themeToggle, this.getThemeMode(win));
 
     root.appendChild(tabs);
