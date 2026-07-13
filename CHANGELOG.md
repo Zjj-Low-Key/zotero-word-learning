@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.8
+
+- Added automatic LLM completion retries for empty responses, incomplete JSON, timeouts, HTTP 429, and 5xx errors, with up to three attempts.
+- Avoids parsing empty responses and accepts Markdown JSON blocks, explanatory text, trailing commas, nested JSON strings, string-form `phrases`, and Unicode BOM.
+- Supports additional OpenAI-compatible response shapes, including `choices[0].message.content`, `choices[0].text`, `output_text`, Gemini candidates, and `data:` SSE payloads.
+- Sends `stream: false`, raises the completion token budget on retries, and reports HTTP status, error detail, and a response snippet when completion fails.
+
 ## 0.10.7
 
 - Fixed the `Refresh` / `刷新状态` and theme-toggle button layout regression introduced in 0.10.6.

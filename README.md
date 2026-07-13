@@ -92,14 +92,14 @@ The same workflow is available in the plugin-controlled dark theme.
 - LLM-generated spelling/sound-alike distractors for better review questions.
 - Chinese and English plugin UI.
 
-## What's New in 0.10.7
+## What's New in 0.10.8
 
-Version 0.10.7 fixes the top-button layout regression introduced in 0.10.6.
+Version 0.10.8 makes LLM-assisted completion resilient to empty, truncated, and non-standard API responses.
 
-- Removes the separate right-aligned `wl-tab-actions` grouping used for `Refresh` and the theme toggle in 0.10.6.
-- Returns `Refresh` and the light/dark toggle to the same top button flow as `Add Word`, `Word Card`, `All Words`, `Review`, and `Settings`.
-- Lets all top buttons wrap naturally when the Zotero side pane becomes narrow, instead of leaving the last two controls isolated on the right or on a detached next line.
-- Keeps a compatibility style fallback for older DOM that still contains `wl-tab-actions`, but that block no longer forces a right-aligned layout.
+- Automatically retries transient failures up to three times, including empty responses, incomplete JSON, timeouts, HTTP 429, and 5xx errors.
+- Parses Markdown JSON fences, surrounding prose, trailing commas, nested JSON strings, string-form `phrases`, Unicode BOM, and common OpenAI-compatible/Gemini/SSE response shapes.
+- Sends `stream: false`, increases the completion budget on retries, and shows HTTP status, failure details, and a response snippet when completion cannot succeed.
+- Shows a clear success message when an automatic retry succeeds. Restart Zotero fully after upgrading to clear old scripts and listeners.
 
 ## Repository Structure
 
@@ -109,7 +109,7 @@ Version 0.10.7 fixes the top-button layout regression introduced in 0.10.6.
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.7.md
+├── RELEASE_NOTES_v0.10.8.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -130,12 +130,12 @@ Version 0.10.7 fixes the top-button layout regression introduced in 0.10.6.
 
 ## Installation
 
-1. Download `zotero-word-learning-0.10.7.xpi` from the release page.
+1. Download `zotero-word-learning-0.10.8.xpi` from the release page.
 2. Open Zotero 9.
 3. Go to `Tools` -> `Add-ons`.
 4. Click the gear icon in the Add-ons Manager.
 5. Choose `Install Add-on From File...`.
-6. Select `zotero-word-learning-0.10.7.xpi`.
+6. Select `zotero-word-learning-0.10.8.xpi`.
 7. Restart Zotero.
 8. After restart, open Word Learning from the right-side `WL` entry, the Zotero Item Pane section, or `Tools` -> `Word Learning`.
 
@@ -387,12 +387,12 @@ Configure an LLM provider and save the term again, or start a review while the A
 
 ## Release
 
-Current version: `0.10.7`
+Current version: `0.10.8`
 
 Release assets:
 
-- `zotero-word-learning-0.10.7.xpi`
-- `Word-Learning-0.10.7-source-no-README.zip`
+- `zotero-word-learning-0.10.8.xpi`
+- `Word-Learning-0.10.8-source-no-README.zip`
 
 ## License
 

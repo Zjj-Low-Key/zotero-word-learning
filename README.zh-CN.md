@@ -92,14 +92,14 @@ English documentation: [README.md](README.md)
 - 使用 LLM 生成形近、音近、拼写相近的混淆选项。
 - 插件界面支持中文和英文。
 
-## 0.10.7 更新内容
+## 0.10.8 更新内容
 
-0.10.7 修复了 0.10.6 引入的顶部按钮排布异常。
+0.10.8 重点提升了 LLM 补全功能的稳定性和容错能力，避免空响应、截断 JSON 或非标准响应导致的 `JSON.parse` 失败。
 
-- 移除了 `刷新状态` 和日夜模式按钮单独使用的右对齐 `wl-tab-actions` 分组。
-- `刷新状态` 和日夜模式按钮现在重新回到和 `添加单词`、`单词卡片`、`全部词汇`、`复习`、`设置` 相同的顶部按钮流里。
-- 当 Zotero 侧栏宽度变窄时，顶部按钮会一起自然换行，不再出现最后两个按钮单独挤到最右侧或单独占下一行的情况。
-- 对仍然存在旧 `wl-tab-actions` DOM 的情况保留了兼容样式，但它不再强制右对齐。
+- 空响应、JSON 不完整、网络超时、HTTP 429 或 5xx 等临时异常会自动重试，最多 3 次。
+- 支持 Markdown JSON 代码块、说明文字、尾随逗号、嵌套 JSON 字符串、字符串形式的 `phrases`、Unicode BOM，以及更多 OpenAI-compatible、Gemini 与 SSE 响应格式。
+- 请求明确使用 `stream: false`，重试时提高返回长度上限；失败提示包含 HTTP 状态、具体原因和响应片段。
+- 自动重试成功会显示明确提示。升级后建议完整重启 Zotero，避免旧脚本或监听器残留。
 
 ## 仓库结构
 
@@ -109,7 +109,7 @@ English documentation: [README.md](README.md)
 ├── README.zh-CN.md
 ├── LICENSE
 ├── CHANGELOG.md
-├── RELEASE_NOTES_v0.10.7.md
+├── RELEASE_NOTES_v0.10.8.md
 ├── package.json
 ├── manifest.json
 ├── bootstrap.js
@@ -130,12 +130,12 @@ English documentation: [README.md](README.md)
 
 ## 安装方法
 
-1. 从 Release 页面下载 `zotero-word-learning-0.10.7.xpi`。
+1. 从 Release 页面下载 `zotero-word-learning-0.10.8.xpi`。
 2. 打开 Zotero 9。
 3. 进入 `Tools` -> `Add-ons`。
 4. 点击 Add-ons Manager 中的齿轮按钮。
 5. 选择 `Install Add-on From File...`。
-6. 选择 `zotero-word-learning-0.10.7.xpi`。
+6. 选择 `zotero-word-learning-0.10.8.xpi`。
 7. 安装后重启 Zotero。
 8. 重启后，点击右侧 `WL` 入口、Zotero 右侧 Item Pane 中的 Word Learning 区域，或通过 `Tools` -> `Word Learning` 打开插件。
 
@@ -387,12 +387,12 @@ bash scripts/build-xpi.sh
 
 ## Release
 
-当前版本：`0.10.7`
+当前版本：`0.10.8`
 
 Release 资产：
 
-- `zotero-word-learning-0.10.7.xpi`
-- `Word-Learning-0.10.7-source-no-README.zip`
+- `zotero-word-learning-0.10.8.xpi`
+- `Word-Learning-0.10.8-source-no-README.zip`
 
 ## 许可证
 

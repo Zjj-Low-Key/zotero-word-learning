@@ -444,7 +444,7 @@ var WordLearningPlugin = {
 
 
 #wl-panel-v026 [data-role="wl-tab-actions"] {
-  /* Kept only for compatibility with older DOM. 0.10.7 no longer groups the
+  /* Kept only for compatibility with older DOM. 0.10.8 no longer groups the
      refresh/theme buttons into a right-aligned action block, because that block
      wrapped independently and could be clipped in narrow Zotero side panes. */
   display: contents !important;
@@ -1827,7 +1827,7 @@ var WordLearningPlugin = {
     header.appendChild(arrow);
     header.appendChild(this.html(doc, 'div', { styleObj: { fontWeight: '700', fontSize: embedded ? '13px' : '14px' } }, 'Word Learning'));
     header.appendChild(this.html(doc, 'div', { styleObj: { flex: '1' } }));
-    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.7') + ' loaded');
+    var status = this.html(doc, 'div', { dataset: { role: 'top-status' }, styleObj: { color: '#6b7280', fontSize: '12px' } }, (this.version || '0.10.8') + ' loaded');
     header.appendChild(status);
     var close = this.smallButton(doc, 'x');
     close.textContent = embedded ? '−' : '×';
@@ -4208,7 +4208,7 @@ var WordLearningPlugin = {
       return { url: url, headers: { 'content-type': 'application/json' }, body: { contents: [{ parts: [{ text: userText }] }], generationConfig: gen } };
     }
 
-    var body = { model: s.modelName, temperature: 0, max_tokens: maxTokens, messages: [{ role: 'user', content: userText }] };
+    var body = { model: s.modelName, temperature: 0, stream: false, max_tokens: maxTokens, messages: [{ role: 'user', content: userText }] };
     if (useReasoning) {
       body.reasoning_effort = effort;
       if (provider === 'deepseek') {
@@ -4224,7 +4224,197 @@ var WordLearningPlugin = {
     try { return await fetch(url, Object.assign({}, options, { signal: controller ? controller.signal : undefined })); } finally { if (timer) clearTimeout(timer); }
   },
 
-  contentFromResponse(json) { return json?.choices?.[0]?.message?.content || json?.content?.[0]?.text || json?.candidates?.[0]?.content?.parts?.[0]?.text || ''; },
+  sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  },
+
+  compactSnippet(value, limit) {
+    limit = limit || 500;
+    var text = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+    return text.length > limit ? text.slice(0, limit) + '…' : text;
+  },
+
+  parseSSEBody(text) {
+    var lines = String(text || '').split(/\r?\n/);
+    var chunks = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.indexOf('data:') !== 0) continue;
+      var payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      try {
+        var obj = JSON.parse(payload);
+        var choice = obj && obj.choices && obj.choices[0];
+        var delta = choice && choice.delta ? choice.delta.content : '';
+        var message = choice && choice.message ? choice.message.content : '';
+        if (typeof delta === 'string') chunks.push(delta);
+        else if (typeof message === 'string') chunks.push(message);
+      } catch (e) {}
+    }
+    return chunks.join('');
+  },
+
+  contentFromResponse(json) {
+    if (!json) return '';
+    if (json.pronunciation || json.chineseMeaning || json.contextExplanation || json.phrases) return json;
+
+    var value = json?.choices?.[0]?.message?.content;
+    if (value == null) value = json?.choices?.[0]?.text;
+    if (value == null) value = json?.content?.[0]?.text;
+    if (value == null) value = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (value == null) value = json?.output_text;
+    if (value == null) value = json?.response;
+    if (value == null && Array.isArray(json?.output)) {
+      var pieces = [];
+      for (var i = 0; i < json.output.length; i++) {
+        var item = json.output[i];
+        if (!item) continue;
+        if (typeof item.text === 'string') pieces.push(item.text);
+        if (Array.isArray(item.content)) {
+          for (var j = 0; j < item.content.length; j++) {
+            var c = item.content[j];
+            if (c && typeof c.text === 'string') pieces.push(c.text);
+          }
+        }
+      }
+      value = pieces.join('\n');
+    }
+
+    if (Array.isArray(value)) {
+      var parts = [];
+      for (var k = 0; k < value.length; k++) {
+        var part = value[k];
+        if (typeof part === 'string') parts.push(part);
+        else if (part && typeof part.text === 'string') parts.push(part.text);
+        else if (part && typeof part.content === 'string') parts.push(part.content);
+      }
+      return parts.join('\n');
+    }
+    return value == null ? '' : value;
+  },
+
+  extractJSONObject(text) {
+    text = String(text || '').replace(/^\uFEFF/, '').trim();
+    if (!text) return '';
+
+    text = text
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    var first = text.indexOf('{');
+    if (first < 0) return '';
+
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var i = first; i < text.length; i++) {
+      var ch = text[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) return text.slice(first, i + 1);
+      }
+    }
+    return '';
+  },
+
+  normalizeLLMCardData(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('模型返回的 JSON 不是对象。');
+    }
+    var out = {
+      pronunciation: data.pronunciation == null ? '' : String(data.pronunciation),
+      chineseMeaning: data.chineseMeaning == null ? '' : String(data.chineseMeaning),
+      contextExplanation: data.contextExplanation == null ? '' : String(data.contextExplanation),
+      phrases: []
+    };
+    if (Array.isArray(data.phrases)) {
+      out.phrases = data.phrases.map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+    } else if (typeof data.phrases === 'string') {
+      out.phrases = data.phrases.split(/\r?\n|,/).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    if (!out.pronunciation && !out.chineseMeaning && !out.contextExplanation && !out.phrases.length) {
+      throw new Error('模型返回的 JSON 中没有可用的词卡字段。');
+    }
+    return out;
+  },
+
+  parseLLMCardPayload(rawText) {
+    var raw = String(rawText == null ? '' : rawText).replace(/^\uFEFF/, '').trim();
+    if (!raw) throw new Error('API 返回为空。');
+
+    var envelope = null;
+    try {
+      envelope = JSON.parse(raw);
+    } catch (outerError) {
+      var sseContent = this.parseSSEBody(raw);
+      if (sseContent) {
+        raw = sseContent;
+      } else {
+        var directObject = this.extractJSONObject(raw);
+        if (!directObject) {
+          throw new Error('API 返回不是完整 JSON：' + this.compactSnippet(raw, 280));
+        }
+        try {
+          return this.normalizeLLMCardData(JSON.parse(directObject.replace(/,\s*([}\]])/g, '$1')));
+        } catch (directError) {
+          throw new Error('API 返回 JSON 不完整或格式错误：' + this.compactSnippet(directObject, 280));
+        }
+      }
+    }
+
+    if (envelope) {
+      var content = this.contentFromResponse(envelope);
+      if (content && typeof content === 'object') return this.normalizeLLMCardData(content);
+      raw = String(content == null ? '' : content).trim();
+      if (!raw) {
+        var finishReason = envelope?.choices?.[0]?.finish_reason || '';
+        throw new Error('API 响应中没有模型正文' + (finishReason ? '（finish_reason=' + finishReason + '）' : '') + '。');
+      }
+    }
+
+    raw = raw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    var candidate = this.extractJSONObject(raw) || raw;
+    var parsed = null;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch (e1) {
+      try {
+        parsed = JSON.parse(candidate.replace(/,\s*([}\]])/g, '$1'));
+      } catch (e2) {
+        throw new Error('模型返回的词卡 JSON 不完整或格式错误：' + this.compactSnippet(candidate, 320));
+      }
+    }
+
+    if (typeof parsed === 'string') {
+      try { parsed = JSON.parse(parsed); } catch (e3) {}
+    }
+    return this.normalizeLLMCardData(parsed);
+  },
+
+  shouldRetryLLMError(error, httpStatus) {
+    if (httpStatus === 408 || httpStatus === 409 || httpStatus === 425 || httpStatus === 429 || httpStatus >= 500) return true;
+    var msg = String(error && (error.message || error) || '').toLowerCase();
+    return /返回为空|没有模型正文|不完整|格式错误|unexpected end|unterminated|timeout|timed out|abort|network|failed to fetch/.test(msg);
+  },
 
   async testConnection(win, button) {
     var oldLabel = '';
@@ -4302,38 +4492,101 @@ var WordLearningPlugin = {
 
   async llmCompleteDraft(win, button, d, statusRole, applyData) {
     var generation = this.currentGeneration(win);
-    // Do not call saveSettings() here. saveSettings() rebuilds the panel after
-    // language changes, which caused LLM Complete to jump to the Settings page.
-    // Read the current settings only.
-    var s = this.normalizeSettings(this.settingsFromPanel(win));
+    var statusName = statusRole || 'wordbook-status';
+    var settings = this.normalizeSettings(this.settingsFromPanel(win));
     var prompt = [
       '你是一名专业的计算机视觉和机器学习论文阅读助手。',
       '请根据用户在论文中摘出的英文单词或短语，生成适合中文读者的学术词汇卡片。',
-      '必须只返回严格 JSON，不要 Markdown，不要代码块，不要解释 JSON 外的文字。',
+      '必须只返回一个完整、严格、可直接解析的 JSON 对象，不要 Markdown，不要代码块，不要 JSON 外的解释。',
       'JSON keys 必须是 pronunciation, chineseMeaning, contextExplanation, phrases。',
       'pronunciation: 给出英语音标；如果是短语，可给核心词音标或留空字符串。',
       'chineseMeaning: 必须用中文给出简洁准确的释义。',
       'contextExplanation: 必须用中文，结合计算机视觉/机器学习论文语境解释该词在当前句子中的含义，不要写英文解释。',
-      'phrases: 必须是数组；每个短语都必须包含原词/短语本身，或者包含原词/短语的核心英文词形；不要给不包含该词的泛泛相关短语。',
+      'phrases: 必须是 JSON 数组；每个短语都必须包含原词/短语本身，或者包含原词/短语的核心英文词形。',
+      '请务必闭合所有引号、数组和大括号。',
       'Word or phrase: ' + d.text,
       'Example sentence from paper: ' + (d.example || '')
     ].join('\n');
-    var req = this.buildChatRequest(s, prompt, 900);
-    button.disabled = true;
-    this.status(win, statusRole || 'wordbook-status', 'LLM completing...', '');
+
+    var maxAttempts = 3;
+    var lastError = null;
+    var lastStatus = 0;
+    var lastSnippet = '';
+    var oldLabel = '';
+
+    if (button) {
+      oldLabel = button.textContent || '';
+      button.disabled = true;
+    }
+
     try {
-      var res = await this.fetchWithTimeout(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body) });
-      var text = await res.text();
-      if (!this.isRenderCurrent(win, generation)) return;
-      if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text.slice(0, 500));
-      var content = this.contentFromResponse(JSON.parse(text)).replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-      var data = JSON.parse(content);
-      applyData(data, this);
-      this.status(win, statusRole || 'wordbook-status', 'LLM suggestions filled. Review/edit, then Save.', 'ok');
-    } catch (e) {
-      this.status(win, statusRole || 'wordbook-status', 'LLM completion failed: ' + (e.message || e), 'err');
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (!this.isRenderCurrent(win, generation)) return;
+
+        var tokenBudget = attempt === 1 ? 1400 : 1900;
+        var req = this.buildChatRequest(settings, prompt, tokenBudget);
+        this.status(
+          win,
+          statusName,
+          (this.isChineseUI() ? 'LLM 正在补全' : 'LLM completing') +
+            '（' + attempt + '/' + maxAttempts + '）...' +
+            (attempt > 1 ? (this.isChineseUI() ? '\n上一次返回不完整，正在自动重试。' : '\nPrevious response was incomplete; retrying automatically.') : ''),
+          ''
+        );
+
+        try {
+          var res = await this.fetchWithTimeout(req.url, {
+            method: 'POST',
+            headers: req.headers,
+            body: JSON.stringify(req.body)
+          });
+          lastStatus = res.status || 0;
+          var text = await res.text();
+          lastSnippet = this.compactSnippet(text, 500);
+
+          if (!this.isRenderCurrent(win, generation)) return;
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status + (text ? ': ' + this.compactSnippet(text, 350) : '（空响应）'));
+          }
+
+          var data = this.parseLLMCardPayload(text);
+          applyData(data, this);
+          try { this.rememberAddDraft(win); } catch (e0) {}
+          this.status(
+            win,
+            statusName,
+            this.isChineseUI()
+              ? ('LLM 补全完成' + (attempt > 1 ? '（自动重试后成功）' : '') + '。请检查内容后保存。')
+              : ('LLM suggestions filled' + (attempt > 1 ? ' after automatic retry' : '') + '. Review/edit, then Save.'),
+            'ok'
+          );
+          return;
+        } catch (e) {
+          lastError = e;
+          var retry = attempt < maxAttempts && this.shouldRetryLLMError(e, lastStatus);
+          if (!retry) break;
+          await this.sleep(attempt === 1 ? 650 : 1400);
+        }
+      }
+
+      var message = this.isChineseUI()
+        ? ('LLM 补全失败：' + (lastError && (lastError.message || lastError) || '未知错误'))
+        : ('LLM completion failed: ' + (lastError && (lastError.message || lastError) || 'Unknown error'));
+      if (lastStatus) message += '\nHTTP: ' + lastStatus;
+      if (lastSnippet && String(lastError && lastError.message || '').indexOf(lastSnippet) < 0) {
+        message += '\n' + (this.isChineseUI() ? '响应片段：' : 'Response snippet: ') + lastSnippet;
+      }
+      message += this.isChineseUI()
+        ? '\n插件已自动重试 3 次；请稍后再试，或在设置中测试当前 API。'
+        : '\nThe plugin retried automatically up to 3 times. Try again later or test the current API in Settings.';
+      this.status(win, statusName, message, 'err');
     } finally {
-      try { if (this.isRenderCurrent(win, generation) && button) button.disabled = false; } catch (e) {}
+      try {
+        if (button) {
+          button.disabled = false;
+          if (oldLabel) button.textContent = oldLabel;
+        }
+      } catch (e2) {}
     }
   },
 
